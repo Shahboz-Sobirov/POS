@@ -337,10 +337,9 @@ class ProductService:
             normalized_area = calculate_area_sqm(normalized_width, normalized_height)
             normalized_quantity = normalized_area
 
-        if normalized_type != 'remnant':
-            normalized_width = None
-            normalized_height = None
-            normalized_area = None
+        # glass uchun ham eni/boyi/kvm saqlanadi (faqat kiritilgan bo'lsa)
+        # Eski xatti-harakat: if normalized_type != 'remnant': None ga o'rnatilgan edi
+        # Endi glass uchun ham saqlaymiz
 
         return {
             'name': str(name).strip(),
