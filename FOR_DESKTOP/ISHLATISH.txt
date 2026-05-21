@@ -1,0 +1,30 @@
+═══════════════════════════════════════════════
+    OYNA SAVDO — Desktop o'rnatish
+═══════════════════════════════════════════════
+
+Bu papkani to'liq holda ishlatiladigan kompyuterga ko'chiring.
+
+FAYL TUZILMASI:
+  📁 FOR_DESKTOP\
+  ├── OYNA SAVDO.exe      ← Asosiy dastur
+  ├── profel_savdo.db     ← Ma'lumotlar bazasi (avtomatik yaratiladi)
+  ├── logs\               ← Log fayllar (avtomatik)
+  └── ISHLATISH.txt       ← Shu fayl
+
+ISHGA TUSHIRISH:
+  1. "FOR_DESKTOP" papkasini xohlagan joyga joylashtiring
+     (masalan: C:\OYNA_SAVDO\ yoki Desktop)
+  2. "OYNA SAVDO.exe" ni ikki marta bosing
+  3. Parol: 1234 (standart)
+
+MUHIM:
+  • Papkani ko'chirmayin, faqat bir joyda saqlang
+  • profel_savdo.db — savdo ma'lumotlari saqlangan fayl,
+    uni o'chirmang!
+  • Printer o'rnatilgan bo'lishi kerak (F8/F12 uchun)
+
+YORDAM:
+  F8  — Ro'yxat cheki (to'lovsiz) → printerga
+  F12 — Savdoni yakunlash + chek → printerga
+
+═══════════════════════════════════════════════

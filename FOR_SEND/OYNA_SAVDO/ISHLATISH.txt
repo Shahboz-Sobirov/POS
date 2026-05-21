@@ -1,0 +1,39 @@
+═══════════════════════════════════════════════
+    OYNA SAVDO — O'rnatish va Ishlatish
+═══════════════════════════════════════════════
+
+TAYYORGARLIK:
+  1. "OYNA_SAVDO" papkasini kompyuterga ko'chiring
+     (masalan: C:\OYNA_SAVDO\ yoki Desktop ga)
+  2. Papka ichidagi "OYNA SAVDO.exe" ni ishga tushiring
+  3. Parol: 1234
+
+MUHIM QOIDALAR:
+  ✅ Papkani bir joyda saqlang, ko'chirmang
+  ✅ profel_savdo.db faylini o'chirmang (savdo tarixi)
+  ✅ logs\ papkasini o'chirmang
+  ❌ .exe ni boshqa joyga nusxalab ishga tushirmang
+
+PRINTER:
+  • Windows → Sozlamalar → Qurilmalar → Printerlar
+  • Default printer o'rnatilgan bo'lishi SHART
+  • F8  → Ro'yxat cheki (savdosiz) → printerga
+  • F12 → Savdoni yakunlash + chek → printerga
+
+SAVDO BOSQICHLARI:
+  1. F1 — Savdo sahifasiga o'ting
+  2. Oyna tanlang → Enter yoki "Savatga qo'shish"
+  3. Eni va Bo'yini kiriting → OK
+  4. To'lov miqdorini kiriting (Naqd / Karta / Click)
+  5. F12 → Savdoni yakunlash → Chek printerdan chiqadi
+
+FAYL TUZILMASI:
+  📁 OYNA_SAVDO\
+  ├── OYNA SAVDO.exe   ← Asosiy dastur (2x bosib ishga tushiring)
+  ├── profel_savdo.db  ← Ma'lumotlar bazasi
+  ├── logs\            ← Xato loglari
+  └── ISHLATISH.txt    ← Shu fayl
+
+═══════════════════════════════════════════════
+         Muammo bo'lsa: +998 xx xxx xx xx
+═══════════════════════════════════════════════

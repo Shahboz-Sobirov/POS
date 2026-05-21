@@ -477,6 +477,7 @@ class SalesPage(QWidget):
         self.update_cart_table()
 
     def preview_invoice(self):
+        """F8 — ro'yxat cheki, to'g'ridan-to'g'ri printerga yuboriladi."""
         if not self.cart_items:
             CustomAlert.show_warning(self, "Ogohlantirish", "Savat bo'sh!")
             return
@@ -485,15 +486,16 @@ class SalesPage(QWidget):
         success, message = ReceiptPrinter.print_preview_receipt(
             cart_items=self.cart_items,
             cashier_name=self.cashier_name,
-            customer_name=customer_name
+            customer_name=customer_name,
         )
         if not success:
-            CustomAlert.show_error(self, "Xato", message)
+            CustomAlert.show_error(self, "Printer Xatosi", message)
         else:
             CustomAlert.show_success(
                 self,
                 "Muvaffaqiyat",
-                "Hisob-chek printerga yuborildi.\n\nSavdo hali yakunlanmadi."
+                f"Ro'yxat cheki printerga yuborildi.\n\n"
+                f"(Savdo hali yakunlanmagan — faqat ro'yxat)"
             )
 
     def check_printer_available(self):
@@ -587,31 +589,31 @@ class SalesPage(QWidget):
                 cashier=self.cashier_name
             )
 
-            if ReceiptPrinter.is_printer_available():
-                success, message = ReceiptPrinter.print_receipt(
-                    sale=sale,
-                    cart_items=self.cart_items,
-                    payment_breakdown=payment_breakdown,
-                    cashier_name=self.cashier_name,
-                    customer_name=customer_name
-                )
-                if not success:
-                    CustomAlert.show_warning(
-                        self,
-                        "Ogohlantirish",
-                        f"Savdo saqlandi, lekin chek chop etilmadi.\n\n{message}"
-                    )
-                else:
-                    CustomAlert.show_success(
-                        self,
-                        "Muvaffaqiyat",
-                        f"Savdo yakunlandi!\n\nChek #{sale.id}\nJami: {total_amount:,.0f} so'm"
-                    )
-            else:
+            # Chekni to'g'ridan-to'g'ri printerga yuborish
+            success, print_msg = ReceiptPrinter.print_receipt(
+                sale=sale,
+                cart_items=self.cart_items,
+                payment_breakdown=payment_breakdown,
+                cashier_name=self.cashier_name,
+                customer_name=customer_name,
+            )
+
+            if success:
                 CustomAlert.show_success(
                     self,
                     "Muvaffaqiyat",
-                    f"Savdo yakunlandi!\n\nChek #{sale.id}\nJami: {total_amount:,.0f} so'm"
+                    f"Savdo yakunlandi!\n\nChek #{sale.id}\n"
+                    f"Jami: {total_amount:,.0f} so'm\n\n"
+                    f"{print_msg}"
+                )
+            else:
+                # Savdo saqlandi, lekin printer xatosi
+                CustomAlert.show_warning(
+                    self,
+                    "Savdo Saqlandi",
+                    f"Savdo muvaffaqiyatli saqlandi!\n\nChek #{sale.id}\n"
+                    f"Jami: {total_amount:,.0f} so'm\n\n"
+                    f"⚠ Chek chop etilmadi:\n{print_msg}"
                 )
 
             self.cart_items.clear()
