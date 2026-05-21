@@ -16,7 +16,5 @@ logs/
 # Database (local copy only — FOR_DESKTOP/FOR_SEND lar git da saqlanmasin)
 # profel_savdo.db  ← comment: saqlansin (migration uchun)
 
-# FOR_SEND ZIP (katta fayl — git LFS kerak emas)
+# FOR_SEND ZIP
 FOR_SEND/OYNA_SAVDO_v1.0.zip
-FOR_SEND/OYNA_SAVDO/*.exe
-FOR_DESKTOP/*.exe
