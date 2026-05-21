@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo Building Profel Savdo EXE
+echo Building OYNA SAVDO EXE
 echo ========================================
 
 cd /d "%~dp0"
@@ -13,10 +13,11 @@ echo Building executable...
 pyinstaller --noconfirm ^
     --onefile ^
     --windowed ^
-    --name "ProfelSavdo" ^
-    --icon="../29.ico" ^
+    --name "OYNA SAVDO" ^
+    --icon="oyna_savdo.ico" ^
     --add-data "config;config" ^
     --add-data "assets;assets" ^
+    --add-data "oyna_savdo.ico;." ^
     --hidden-import "PySide6.QtCore" ^
     --hidden-import "PySide6.QtGui" ^
     --hidden-import "PySide6.QtWidgets" ^
@@ -26,6 +27,6 @@ pyinstaller --noconfirm ^
 
 echo ========================================
 echo Build complete!
-echo EXE location: dist\ProfelSavdo.exe
+echo EXE location: dist\OYNA SAVDO.exe
 echo ========================================
 pause

@@ -4,6 +4,7 @@ Debt Payment Service
 """
 import json
 from datetime import datetime
+from sqlalchemy.orm import joinedload
 from models.base import Session
 from models.debt_payment import DebtPayment
 from models.customer import Customer
@@ -12,6 +13,24 @@ from services.audit_service import AuditService
 
 class DebtPaymentService:
     """Debt payment business logic"""
+
+    @staticmethod
+    def normalize_payment_breakdown(payment_breakdown):
+        """Return payment breakdown as a clean dictionary."""
+        if not payment_breakdown:
+            return {}
+
+        if isinstance(payment_breakdown, dict):
+            return payment_breakdown
+
+        if isinstance(payment_breakdown, str):
+            try:
+                parsed = json.loads(payment_breakdown)
+                return parsed if isinstance(parsed, dict) else {}
+            except json.JSONDecodeError:
+                return {}
+
+        return {}
 
     @staticmethod
     def create_payment(customer_id, amount, payment_type, payment_breakdown=None, note=None, cashier="Admin"):
@@ -33,12 +52,14 @@ class DebtPaymentService:
             if not customer:
                 raise ValueError("Customer not found")
 
+            normalized_breakdown = DebtPaymentService.normalize_payment_breakdown(payment_breakdown)
+
             # Create payment
             payment = DebtPayment(
                 customer_id=customer_id,
                 amount=amount,
                 payment_type=payment_type,
-                payment_breakdown=json.dumps(payment_breakdown) if payment_breakdown else None,
+                payment_breakdown=json.dumps(normalized_breakdown) if normalized_breakdown else None,
                 note=note,
                 payment_date=datetime.now()
             )
@@ -51,6 +72,7 @@ class DebtPaymentService:
 
             session.commit()
             session.refresh(payment)
+            payment.payment_breakdown = normalized_breakdown
             session.expunge(payment)
 
             # Audit log
@@ -69,7 +91,13 @@ class DebtPaymentService:
         """Get all debt payments"""
         session = Session()
         try:
-            payments = session.query(DebtPayment).order_by(DebtPayment.payment_date.desc()).limit(limit).all()
+            payments = session.query(DebtPayment).options(
+                joinedload(DebtPayment.customer)
+            ).order_by(DebtPayment.payment_date.desc()).limit(limit).all()
+            for payment in payments:
+                payment.payment_breakdown = DebtPaymentService.normalize_payment_breakdown(
+                    payment.payment_breakdown
+                )
             session.expunge_all()
             return payments
         finally:
@@ -80,7 +108,13 @@ class DebtPaymentService:
         """Get debt payments by customer"""
         session = Session()
         try:
-            payments = session.query(DebtPayment).filter_by(customer_id=customer_id).order_by(DebtPayment.payment_date.desc()).all()
+            payments = session.query(DebtPayment).options(
+                joinedload(DebtPayment.customer)
+            ).filter_by(customer_id=customer_id).order_by(DebtPayment.payment_date.desc()).all()
+            for payment in payments:
+                payment.payment_breakdown = DebtPaymentService.normalize_payment_breakdown(
+                    payment.payment_breakdown
+                )
             session.expunge_all()
             return payments
         finally:
@@ -91,10 +125,16 @@ class DebtPaymentService:
         """Get debt payments by date range"""
         session = Session()
         try:
-            payments = session.query(DebtPayment).filter(
+            payments = session.query(DebtPayment).options(
+                joinedload(DebtPayment.customer)
+            ).filter(
                 DebtPayment.payment_date >= start_date,
                 DebtPayment.payment_date <= end_date
             ).order_by(DebtPayment.payment_date.desc()).all()
+            for payment in payments:
+                payment.payment_breakdown = DebtPaymentService.normalize_payment_breakdown(
+                    payment.payment_breakdown
+                )
             session.expunge_all()
             return payments
         finally:

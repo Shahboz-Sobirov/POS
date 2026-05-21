@@ -227,6 +227,32 @@ class DatabaseConnection:
             'last_error': self.last_error
         }
 
+    def is_fallback_active(self):
+        """Check whether PostgreSQL was requested but SQLite is currently active."""
+        configured_type = self.config_manager.config.get('database_type', 'sqlite')
+        return configured_type == 'postgresql' and self.connection_type == 'sqlite'
+
+    def get_fallback_warning_message(self):
+        """Build a user-facing warning message for PostgreSQL fallback mode."""
+        if not self.is_fallback_active():
+            return None
+
+        config = self.config_manager.config
+        message = (
+            "PostgreSQL serveriga ulanib bo'lmadi.\n\n"
+            "Ilova hozircha SQLite (lokal) rejimida ishlayapti.\n"
+            "Serverdagi umumiy ma'lumotlar bu kompyuter bilan sinxron bo'lmaydi."
+        )
+
+        if self.last_error:
+            message += f"\n\nOxirgi xato:\n{self.last_error}"
+
+        message += (
+            "\n\nSozlamalar sahifasiga kirib server ulanishini tekshiring."
+            f"\nKutilgan server: {config.get('host')}:{config.get('port')}/{config.get('database')}"
+        )
+        return message
+
     def is_postgresql(self):
         """Check if using PostgreSQL"""
         return self.connection_type == 'postgresql'

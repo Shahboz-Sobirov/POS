@@ -4,6 +4,7 @@ Category Service
 """
 from models.base import Session
 from models.category import Category
+from models.product import Product
 
 
 class CategoryService:
@@ -39,11 +40,18 @@ class CategoryService:
             Session.remove()
 
     @staticmethod
-    def create(name, color='#3498db', icon='📦'):
+    def create(name, color="#3498db", icon=""):
         """Create new category"""
+        if not name or not name.strip():
+            raise ValueError("Kategoriya nomi bo'sh bo'lishi mumkin emas")
+
         session = Session()
         try:
-            category = Category(name=name, color=color, icon=icon)
+            category = Category(
+                name=name.strip(),
+                color=color,
+                icon=icon or None,
+            )
             session.add(category)
             session.commit()
 
@@ -66,14 +74,16 @@ class CategoryService:
         try:
             category = session.query(Category).filter_by(id=category_id).first()
             if not category:
-                raise ValueError("Category not found")
+                raise ValueError("Kategoriya topilmadi")
 
             if name is not None:
-                category.name = name
+                if not name.strip():
+                    raise ValueError("Kategoriya nomi bo'sh bo'lishi mumkin emas")
+                category.name = name.strip()
             if color is not None:
                 category.color = color
             if icon is not None:
-                category.icon = icon
+                category.icon = icon or None
 
             session.commit()
 
@@ -96,7 +106,13 @@ class CategoryService:
         try:
             category = session.query(Category).filter_by(id=category_id).first()
             if not category:
-                raise ValueError("Category not found")
+                raise ValueError("Kategoriya topilmadi")
+
+            products_count = session.query(Product).filter_by(category_id=category_id).count()
+            if products_count > 0:
+                raise ValueError(
+                    "Bu kategoriyada mahsulotlar bor. Avval mahsulotlarni boshqa kategoriyaga o'tkazing yoki o'chiring"
+                )
 
             session.delete(category)
             session.commit()

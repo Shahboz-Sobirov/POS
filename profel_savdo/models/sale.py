@@ -35,6 +35,13 @@ class SaleItem(Base):
     sale_id = Column(Integer, ForeignKey('sales.id'), nullable=False)
     product_id = Column(Integer, ForeignKey('products.id'), nullable=False)
     quantity = Column(Float, nullable=False)
+    eni = Column(Float, nullable=True)
+    boyi = Column(Float, nullable=True)
+    kvm = Column(Float, nullable=True)
+    narx_per_kvm = Column(Float, nullable=True)
+    width = Column(Float, nullable=True)
+    height = Column(Float, nullable=True)
+    area_sqm = Column(Float, nullable=True)
     price = Column(Float, nullable=False)
     cost_price = Column(Float, nullable=False)  # Snapshot at sale time
     profit = Column(Float, nullable=False)  # AUTO-CALCULATED: (price - cost_price) * quantity

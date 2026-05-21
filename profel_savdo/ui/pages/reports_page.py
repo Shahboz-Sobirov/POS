@@ -5,16 +5,29 @@ Daily, Weekly, Monthly, Yearly, Custom Range
 """
 from html import escape
 from datetime import datetime, timedelta
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                               QPushButton, QTableWidget, QTableWidgetItem,
-                               QHeaderView, QComboBox, QDateEdit, QGroupBox,
-                               QFileDialog)
+from PySide6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+    QComboBox,
+    QDateEdit,
+    QGroupBox,
+    QFileDialog,
+)
 from PySide6.QtCore import Qt, QDate
 from PySide6.QtGui import QShortcut, QKeySequence, QTextDocument
 from PySide6.QtPrintSupport import QPrinter, QPrintDialog, QPrinterInfo
 from openpyxl import Workbook
 from openpyxl.styles import Font
+from config.constants import APP_NAME
 from services.sale_service import SaleService
+from services.debt_payment_service import DebtPaymentService
+from utils.formatter import format_meters, format_square_meters
 from widgets.custom_alert import CustomAlert
 from utils.error_logger import log_exception, get_user_friendly_message
 
@@ -23,27 +36,40 @@ class ReportsPage(QWidget):
     def __init__(self):
         super().__init__()
         self.current_sales = []
+        self.current_debt_payments = []
+        self.current_records = []
         self.current_start_datetime = None
         self.current_end_datetime = None
+        self.current_payment_totals = self.create_empty_payment_totals()
+        self.current_total_kvm = 0
+        self.current_top_glass = "-"
         self.setup_ui()
         self.setup_shortcuts()
+
+    @staticmethod
+    def create_empty_payment_totals():
+        """Create empty payment totals structure."""
+        return {
+            "naqd": 0,
+            "karta": 0,
+            "click": 0,
+            "qarz": 0,
+            "tolangan_qarz": 0,
+        }
 
     def setup_ui(self):
         layout = QVBoxLayout()
         layout.setContentsMargins(32, 32, 32, 32)
         layout.setSpacing(16)
 
-        # Title
         title = QLabel("Hisobotlar")
         title.setObjectName("pageTitle")
         layout.addWidget(title)
 
-        # Filter section
         filter_group = QGroupBox("Filtr")
         filter_layout = QHBoxLayout()
         filter_layout.setSpacing(12)
 
-        # Mode selector
         mode_label = QLabel("Davr:")
         filter_layout.addWidget(mode_label)
 
@@ -57,7 +83,6 @@ class ReportsPage(QWidget):
         self.mode_combo.currentIndexChanged.connect(self.on_mode_changed)
         filter_layout.addWidget(self.mode_combo)
 
-        # Date range with custom styling
         self.start_date = QDateEdit()
         self.start_date.setCalendarPopup(True)
         self.start_date.setDate(QDate.currentDate())
@@ -74,91 +99,99 @@ class ReportsPage(QWidget):
         self.end_date.setDate(QDate.currentDate())
         self.end_date.setMinimumHeight(40)
         self.end_date.setDisplayFormat("dd.MM.yyyy")
-        self.end_date.setEnabled(False)  # Enabled only in custom mode
+        self.end_date.setEnabled(False)
         self.apply_date_style(self.end_date)
         filter_layout.addWidget(self.end_date)
 
-        # Load button
-        load_btn = QPushButton("📊 Yuklash")
+        load_btn = QPushButton("Yuklash")
         load_btn.setObjectName("btnSuccess")
         load_btn.setMinimumHeight(40)
         load_btn.setCursor(Qt.PointingHandCursor)
         load_btn.clicked.connect(self.load_report)
         filter_layout.addWidget(load_btn)
 
-        # Print button
-        print_btn = QPushButton("🖨️ Chop Etish")
+        print_btn = QPushButton("Chop Etish")
         print_btn.setMinimumHeight(40)
         print_btn.setCursor(Qt.PointingHandCursor)
         print_btn.clicked.connect(self.print_report)
         filter_layout.addWidget(print_btn)
 
-        # Excel button
-        excel_btn = QPushButton("📑 Excel")
+        excel_btn = QPushButton("Excel")
         excel_btn.setMinimumHeight(40)
         excel_btn.setCursor(Qt.PointingHandCursor)
         excel_btn.clicked.connect(self.export_excel)
         filter_layout.addWidget(excel_btn)
 
         filter_layout.addStretch()
-
         filter_group.setLayout(filter_layout)
         layout.addWidget(filter_group)
 
-        # Summary section
         summary_group = QGroupBox("Umumiy Ma'lumot")
         summary_layout = QHBoxLayout()
         summary_layout.setSpacing(16)
 
-        # Total sales
-        self.total_sales_label = QLabel("Savdolar: 0")
+        self.total_sales_label = QLabel("Savdolar: 0 | Qarz to'lovlari: 0")
         self.total_sales_label.setStyleSheet("font-size: 16px; font-weight: 600;")
         summary_layout.addWidget(self.total_sales_label)
 
-        # Total revenue
         self.total_revenue_label = QLabel("Daromad: 0 so'm")
-        self.total_revenue_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #3498db;")
+        self.total_revenue_label.setStyleSheet(
+            "font-size: 16px; font-weight: 600; color: #3498db;"
+        )
         summary_layout.addWidget(self.total_revenue_label)
 
-        # Total profit
         self.total_profit_label = QLabel("Foyda: 0 so'm")
-        self.total_profit_label.setStyleSheet("font-size: 16px; font-weight: 600; color: #27ae60;")
+        self.total_profit_label.setStyleSheet(
+            "font-size: 16px; font-weight: 600; color: #27ae60;"
+        )
         summary_layout.addWidget(self.total_profit_label)
 
-        summary_layout.addStretch()
+        self.total_kvm_label = QLabel("KVM: 0")
+        self.total_kvm_label.setStyleSheet(
+            "font-size: 16px; font-weight: 600; color: #0f766e;"
+        )
+        summary_layout.addWidget(self.total_kvm_label)
 
+        self.top_glass_label = QLabel("Eng ko'p: -")
+        self.top_glass_label.setStyleSheet(
+            "font-size: 16px; font-weight: 600; color: #102331;"
+        )
+        summary_layout.addWidget(self.top_glass_label)
+
+        summary_layout.addStretch()
         summary_group.setLayout(summary_layout)
         layout.addWidget(summary_group)
 
-        # Payment breakdown
         payment_group = QGroupBox("To'lovlar Taqsimoti")
         payment_layout = QHBoxLayout()
         payment_layout.setSpacing(16)
 
-        self.naqd_label = QLabel("💵 Naqd: 0")
+        self.naqd_label = QLabel("Naqd: 0")
         payment_layout.addWidget(self.naqd_label)
 
-        self.karta_label = QLabel("💳 Karta: 0")
+        self.karta_label = QLabel("Karta: 0")
         payment_layout.addWidget(self.karta_label)
 
-        self.click_label = QLabel("📱 Click: 0")
+        self.click_label = QLabel("Click: 0")
         payment_layout.addWidget(self.click_label)
 
-        self.qarz_label = QLabel("📋 Qarz: 0")
+        self.qarz_label = QLabel("Qarz: 0")
         payment_layout.addWidget(self.qarz_label)
 
-        payment_layout.addStretch()
+        self.tolangan_qarz_label = QLabel("To'langan qarz: 0")
+        payment_layout.addWidget(self.tolangan_qarz_label)
 
+        payment_layout.addStretch()
         payment_group.setLayout(payment_layout)
         layout.addWidget(payment_group)
 
-        # Table
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels([
-            "Sana", "Mijoz", "Mahsulotlar", "To'lov", "Summa", "Foyda"
-        ])
+        self.table.setColumnCount(9)
+        self.table.setHorizontalHeaderLabels(
+            ["Sana", "Mijoz", "Oyna", "Eni", "Bo'yi", "KVM", "To'lov", "Jami", "Foyda"]
+        )
         self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.Stretch)
         self.table.setAlternatingRowColors(True)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -167,8 +200,6 @@ class ReportsPage(QWidget):
         layout.addWidget(self.table)
 
         self.setLayout(layout)
-
-        # Load default (daily)
         self.load_report()
 
     def setup_shortcuts(self):
@@ -206,7 +237,7 @@ class ReportsPage(QWidget):
         self.load_report()
 
     def get_date_range(self):
-        """Resolve current date range based on selected mode"""
+        """Resolve current date range based on selected mode."""
         mode = self.mode_combo.currentData()
         start_date = self.start_date.date().toPython()
 
@@ -229,159 +260,211 @@ class ReportsPage(QWidget):
         return start_datetime, end_datetime
 
     def load_report(self):
-        """Load report"""
+        """Load report."""
         try:
             start_datetime, end_datetime = self.get_date_range()
 
-            # Get sales
             sales = SaleService.get_by_date_range(start_datetime, end_datetime)
+            debt_payments = DebtPaymentService.get_by_date_range(start_datetime, end_datetime)
+            payment_totals = self.create_empty_payment_totals()
+
+            for sale in sales:
+                if not sale.payment_breakdown:
+                    continue
+                for key, value in sale.payment_breakdown.items():
+                    if key in payment_totals:
+                        payment_totals[key] += value
+
+            payment_totals["tolangan_qarz"] = sum(
+                payment.amount or 0 for payment in debt_payments
+            )
+
             self.current_sales = sales
+            self.current_debt_payments = debt_payments
+            self.current_records = self.build_report_records(sales, debt_payments)
             self.current_start_datetime = start_datetime
             self.current_end_datetime = end_datetime
+            self.current_payment_totals = payment_totals
+            self.current_total_kvm = sum(record.get("kvm", 0) for record in self.current_records if record["row_type"] == "sale")
+            self.current_top_glass = self.get_top_glass_name(self.current_records)
 
-            # Calculate totals
             total_sales = len(sales)
+            total_debt_payments = len(debt_payments)
             total_revenue = sum(s.total_amount for s in sales)
             total_profit = sum(s.profit for s in sales)
 
-            # Payment breakdown
-            payment_totals = {'naqd': 0, 'karta': 0, 'click': 0, 'qarz': 0}
-            for sale in sales:
-                if sale.payment_breakdown:
-                    for key, value in sale.payment_breakdown.items():
-                        if key in payment_totals:
-                            payment_totals[key] += value
-
-            # Update summary
-            self.total_sales_label.setText(f"Savdolar: {total_sales}")
+            self.total_sales_label.setText(
+                f"Savdolar: {total_sales} | Qarz to'lovlari: {total_debt_payments}"
+            )
             self.total_revenue_label.setText(f"Daromad: {total_revenue:,.0f} so'm")
             self.total_profit_label.setText(f"Foyda: {total_profit:,.0f} so'm")
+            self.total_kvm_label.setText(f"KVM: {format_square_meters(self.current_total_kvm)}")
+            self.top_glass_label.setText(f"Eng ko'p: {self.current_top_glass}")
 
-            # Update payment breakdown
-            self.naqd_label.setText(f"💵 Naqd: {payment_totals['naqd']:,.0f}")
-            self.karta_label.setText(f"💳 Karta: {payment_totals['karta']:,.0f}")
-            self.click_label.setText(f"📱 Click: {payment_totals['click']:,.0f}")
-            self.qarz_label.setText(f"📋 Qarz: {payment_totals['qarz']:,.0f}")
+            self.naqd_label.setText(f"Naqd: {payment_totals['naqd']:,.0f}")
+            self.karta_label.setText(f"Karta: {payment_totals['karta']:,.0f}")
+            self.click_label.setText(f"Click: {payment_totals['click']:,.0f}")
+            self.qarz_label.setText(f"Qarz: {payment_totals['qarz']:,.0f}")
+            self.tolangan_qarz_label.setText(
+                f"To'langan qarz: {payment_totals['tolangan_qarz']:,.0f}"
+            )
 
-            # Populate table
-            self.populate_table(sales)
+            self.populate_table(self.current_records)
 
         except Exception as e:
             log_exception(e, "load_report")
             CustomAlert.show_error(self, "Xato", get_user_friendly_message(e))
 
-    def populate_table(self, sales):
-        """Populate table with safe rendering"""
-        self.table.setRowCount(len(sales))
+    def build_report_records(self, sales, debt_payments):
+        """Build one table dataset from sales and debt payments."""
+        records = []
 
-        for row, sale in enumerate(sales):
-            try:
-                # Date - SAFE
-                try:
-                    date_str = sale.sale_date.strftime("%d.%m.%Y %H:%M") if sale.sale_date else "-"
-                except:
-                    date_str = "-"
-                self.table.setItem(row, 0, QTableWidgetItem(date_str))
-
-                # Customer - SAFE
-                try:
-                    customer_name = sale.customer.full_name if sale.customer else "-"
-                except:
-                    customer_name = "-"
-                self.table.setItem(row, 1, QTableWidgetItem(customer_name))
-
-                # Products - SAFE
-                try:
-                    products_list = [item.product.name for item in sale.items if item.product]
-                    if products_list:
-                        products_str = ", ".join(products_list[:2])
-                        if len(products_list) > 2:
-                            products_str += f" (+{len(products_list) - 2})"
-                    else:
-                        products_str = "-"
-                except:
-                    products_str = "-"
-                self.table.setItem(row, 2, QTableWidgetItem(products_str))
-
-                # Payment - SAFE
-                try:
-                    payment_str = self.format_payment_breakdown(sale.payment_breakdown)
-                except:
-                    payment_str = "-"
-                self.table.setItem(row, 3, QTableWidgetItem(payment_str))
-
-                # Amount - SAFE
-                try:
-                    amount_str = f"{sale.total_amount:,.0f}" if sale.total_amount else "0"
-                except:
-                    amount_str = "0"
-                self.table.setItem(row, 4, QTableWidgetItem(amount_str))
-
-                # Profit - SAFE
-                try:
-                    profit_str = f"{sale.profit:,.0f}" if sale.profit else "0"
-                except:
-                    profit_str = "0"
-                self.table.setItem(row, 5, QTableWidgetItem(profit_str))
-
-            except Exception as e:
-                # If entire row fails, log and skip
-                print(f"Warning: Failed to render sale row {row}: {e}")
-                # Fill with placeholder data
-                for col in range(6):
-                    self.table.setItem(row, col, QTableWidgetItem("-"))
-
-    def format_payment_breakdown(self, breakdown):
-        """Format payment breakdown - NO 'Mixed'"""
-        if not breakdown:
-            return "Naqd"
-
-        parts = []
-        if breakdown.get('naqd', 0) > 0:
-            parts.append(f"Naqd: {breakdown['naqd']:,.0f}")
-        if breakdown.get('karta', 0) > 0:
-            parts.append(f"Karta: {breakdown['karta']:,.0f}")
-        if breakdown.get('click', 0) > 0:
-            parts.append(f"Click: {breakdown['click']:,.0f}")
-        if breakdown.get('qarz', 0) > 0:
-            parts.append(f"Qarz: {breakdown['qarz']:,.0f}")
-
-        return "\n".join(parts) if parts else "Naqd"
-
-    def get_products_summary(self, sale):
-        """Get compact product list for UI/export/printing"""
-        products_list = [item.product.name for item in sale.items if item.product]
-        if not products_list:
-            return "-"
-        if len(products_list) <= 2:
-            return ", ".join(products_list)
-        return f"{', '.join(products_list[:2])} (+{len(products_list) - 2})"
-
-    def build_report_html(self):
-        """Build printable HTML from the currently loaded report"""
-        total_revenue = sum(s.total_amount for s in self.current_sales)
-        total_profit = sum(s.profit for s in self.current_sales)
-
-        rows = []
-        for sale in self.current_sales:
+        for sale in sales:
             customer_name = sale.customer.full_name if sale.customer else "-"
-            rows.append(
-                f"""
-                <tr>
-                    <td>{escape(sale.sale_date.strftime("%d.%m.%Y %H:%M"))}</td>
-                    <td>{escape(customer_name)}</td>
-                    <td>{escape(self.get_products_summary(sale))}</td>
-                    <td>{escape(self.format_payment_breakdown(sale.payment_breakdown)).replace(chr(10), "<br>")}</td>
-                    <td style="text-align:right;">{sale.total_amount:,.0f}</td>
-                    <td style="text-align:right;">{sale.profit:,.0f}</td>
-                </tr>
-                """
+            payment_text = self.format_payment_breakdown(sale.payment_breakdown)
+            for item in sale.items:
+                if not item.product:
+                    continue
+                eni = item.eni or item.width
+                boyi = item.boyi or item.height
+                kvm = item.kvm or item.area_sqm or item.quantity or 0
+                narx_per_kvm = item.narx_per_kvm or item.price or 0
+                records.append(
+                    {
+                        "row_type": "sale",
+                        "date": sale.sale_date,
+                        "customer_name": customer_name,
+                        "product_name": item.product.name,
+                        "eni": eni,
+                        "boyi": boyi,
+                        "kvm": kvm,
+                        "narx_per_kvm": narx_per_kvm,
+                        "payment_text": payment_text,
+                        "amount": kvm * narx_per_kvm,
+                        "profit": item.profit or 0,
+                        "name": item.product.name,
+                    }
+                )
+
+        for payment in debt_payments:
+            customer_name = payment.customer.full_name if payment.customer else "-"
+            description = "To'langan qarz"
+            if payment.note:
+                description = f"{description}: {payment.note}"
+
+            records.append(
+                {
+                    "row_type": "debt_payment",
+                    "date": payment.payment_date,
+                    "customer_name": customer_name,
+                    "product_name": description,
+                    "eni": None,
+                    "boyi": None,
+                    "kvm": 0,
+                    "narx_per_kvm": 0,
+                    "payment_text": self.format_payment_breakdown(
+                        payment.payment_breakdown,
+                        payment.payment_type,
+                    ),
+                    "amount": payment.amount or 0,
+                    "profit": 0,
+                    "name": "",
+                }
             )
 
+        records.sort(key=lambda record: record["date"], reverse=True)
+        return records
+
+    def get_top_glass_name(self, records):
+        """Return the glass type with the highest sold KVM in the report."""
+        totals = {}
+        for record in records:
+            if record["row_type"] != "sale":
+                continue
+            name = record.get("name") or "-"
+            totals[name] = totals.get(name, 0) + float(record.get("kvm") or 0)
+
+        if not totals:
+            return "-"
+
+        name, kvm = max(totals.items(), key=lambda item: item[1])
+        return f"{name} ({format_square_meters(kvm)})"
+
+    def populate_table(self, records):
+        """Populate table with safe rendering."""
+        self.table.setRowCount(len(records))
+
+        for row, record in enumerate(records):
+            try:
+                date_str = record["date"].strftime("%d.%m.%Y %H:%M") if record["date"] else "-"
+                self.table.setItem(row, 0, QTableWidgetItem(date_str))
+                self.table.setItem(row, 1, QTableWidgetItem(record["customer_name"]))
+                self.table.setItem(row, 2, QTableWidgetItem(record["product_name"]))
+                self.table.setItem(row, 3, QTableWidgetItem(format_meters(record["eni"]) if record["eni"] else "-"))
+                self.table.setItem(row, 4, QTableWidgetItem(format_meters(record["boyi"]) if record["boyi"] else "-"))
+                self.table.setItem(
+                    row,
+                    5,
+                    QTableWidgetItem(
+                        format_square_meters(record["kvm"]) if record["row_type"] == "sale" else "-"
+                    ),
+                )
+                self.table.setItem(row, 6, QTableWidgetItem(record["payment_text"]))
+                self.table.setItem(row, 7, QTableWidgetItem(f"{record['amount']:,.0f}"))
+                self.table.setItem(row, 8, QTableWidgetItem(f"{record['profit']:,.0f}"))
+                for col in range(3, 9):
+                    item = self.table.item(row, col)
+                    if item:
+                        item.setTextAlignment(Qt.AlignCenter)
+            except Exception as e:
+                print(f"Warning: Failed to render report row {row}: {e}")
+                for col in range(9):
+                    self.table.setItem(row, col, QTableWidgetItem("-"))
+        self.table.resizeRowsToContents()
+
+    def format_payment_breakdown(self, breakdown, fallback_payment_type=None):
+        """Format payment breakdown without showing 'Mixed' text."""
+        if not breakdown:
+            return fallback_payment_type or "Naqd"
+
+        parts = []
+        if breakdown.get("naqd", 0) > 0:
+            parts.append(f"Naqd: {breakdown['naqd']:,.0f}")
+        if breakdown.get("karta", 0) > 0:
+            parts.append(f"Karta: {breakdown['karta']:,.0f}")
+        if breakdown.get("click", 0) > 0:
+            parts.append(f"Click: {breakdown['click']:,.0f}")
+        if breakdown.get("qarz", 0) > 0:
+            parts.append(f"Qarz: {breakdown['qarz']:,.0f}")
+
+        return "\n".join(parts) if parts else (fallback_payment_type or "Naqd")
+
+    def build_report_html(self):
+        """Build printable HTML from the currently loaded report."""
+        total_revenue = sum(s.total_amount for s in self.current_sales)
+        total_profit = sum(s.profit for s in self.current_sales)
         date_range = (
             f"{self.current_start_datetime.strftime('%d.%m.%Y')} - "
             f"{self.current_end_datetime.strftime('%d.%m.%Y')}"
         )
+
+        rows = []
+        for record in self.current_records:
+            rows.append(
+                f"""
+                <tr>
+                    <td>{escape(record['date'].strftime("%d.%m.%Y %H:%M"))}</td>
+                    <td>{escape(record['customer_name'])}</td>
+                    <td>{escape(record['product_name'])}</td>
+                    <td>{escape(format_meters(record['eni']) if record['eni'] else "-")}</td>
+                    <td>{escape(format_meters(record['boyi']) if record['boyi'] else "-")}</td>
+                    <td>{escape(format_square_meters(record['kvm']) if record['row_type'] == 'sale' else "-")}</td>
+                    <td>{escape(record['payment_text']).replace(chr(10), "<br>")}</td>
+                    <td style="text-align:right;">{record['amount']:,.0f}</td>
+                    <td style="text-align:right;">{record['profit']:,.0f}</td>
+                </tr>
+                """
+            )
 
         return f"""
         <html>
@@ -398,21 +481,31 @@ class ReportsPage(QWidget):
             </style>
         </head>
         <body>
-            <h1>Profel Savdo Hisoboti</h1>
+            <h1>{escape(APP_NAME)} Hisoboti</h1>
             <p>Davr: {escape(date_range)}</p>
             <div class="summary">
-                <p>Savdolar: {len(self.current_sales)}</p>
+                <p>Savdolar: {len(self.current_sales)} | Qarz to'lovlari: {len(self.current_debt_payments)}</p>
                 <p>Daromad: {total_revenue:,.0f} so'm</p>
                 <p>Foyda: {total_profit:,.0f} so'm</p>
+                <p>Sotilgan KVM: {escape(format_square_meters(self.current_total_kvm))}</p>
+                <p>Eng ko'p sotilgan oyna: {escape(self.current_top_glass)}</p>
+                <p>Naqd: {self.current_payment_totals['naqd']:,.0f}</p>
+                <p>Karta: {self.current_payment_totals['karta']:,.0f}</p>
+                <p>Click: {self.current_payment_totals['click']:,.0f}</p>
+                <p>Qarz: {self.current_payment_totals['qarz']:,.0f}</p>
+                <p>To'langan qarz: {self.current_payment_totals['tolangan_qarz']:,.0f}</p>
             </div>
             <table>
                 <thead>
                     <tr>
                         <th>Sana</th>
                         <th>Mijoz</th>
-                        <th>Mahsulotlar</th>
+                        <th>Oyna</th>
+                        <th>Eni</th>
+                        <th>Bo'yi</th>
+                        <th>KVM</th>
                         <th>To'lov</th>
-                        <th>Summa</th>
+                        <th>Jami</th>
                         <th>Foyda</th>
                     </tr>
                 </thead>
@@ -425,8 +518,8 @@ class ReportsPage(QWidget):
         """
 
     def print_report(self):
-        """Print report (CTRL+P)"""
-        if not self.current_sales:
+        """Print report (CTRL+P)."""
+        if not self.current_records:
             CustomAlert.show_warning(self, "Ogohlantirish", "Chop etish uchun hisobot bo'sh")
             return
 
@@ -449,7 +542,7 @@ class ReportsPage(QWidget):
             CustomAlert.show_error(self, "Xato", get_user_friendly_message(e))
 
     def check_printer_available(self):
-        """Check if printer is available"""
+        """Check if printer is available."""
         try:
             default_printer = QPrinterInfo.defaultPrinter()
             return not default_printer.isNull()
@@ -457,8 +550,8 @@ class ReportsPage(QWidget):
             return False
 
     def export_excel(self):
-        """Export to Excel (CTRL+E)"""
-        if not self.current_sales:
+        """Export to Excel (CTRL+E)."""
+        if not self.current_records:
             CustomAlert.show_warning(self, "Ogohlantirish", "Export qilish uchun hisobot bo'sh")
             return
 
@@ -470,7 +563,7 @@ class ReportsPage(QWidget):
             self,
             "Excel faylni saqlash",
             default_name,
-            "Excel Files (*.xlsx)"
+            "Excel Files (*.xlsx)",
         )
 
         if not file_path:
@@ -484,7 +577,7 @@ class ReportsPage(QWidget):
             sheet = workbook.active
             sheet.title = "Hisobot"
 
-            sheet["A1"] = "Profel Savdo Hisoboti"
+            sheet["A1"] = f"{APP_NAME} Hisoboti"
             sheet["A1"].font = Font(bold=True, size=14)
             sheet["A2"] = "Davr"
             sheet["B2"] = (
@@ -493,33 +586,58 @@ class ReportsPage(QWidget):
             )
             sheet["A3"] = "Savdolar"
             sheet["B3"] = len(self.current_sales)
-            sheet["A4"] = "Daromad"
-            sheet["B4"] = sum(s.total_amount for s in self.current_sales)
-            sheet["A5"] = "Foyda"
-            sheet["B5"] = sum(s.profit for s in self.current_sales)
+            sheet["A4"] = "Qarz to'lovlari"
+            sheet["B4"] = len(self.current_debt_payments)
+            sheet["A5"] = "Daromad"
+            sheet["B5"] = sum(s.total_amount for s in self.current_sales)
+            sheet["A6"] = "Foyda"
+            sheet["B6"] = sum(s.profit for s in self.current_sales)
+            sheet["A7"] = "Sotilgan KVM"
+            sheet["B7"] = self.current_total_kvm
+            sheet["A8"] = "Eng ko'p sotilgan oyna"
+            sheet["B8"] = self.current_top_glass
+            sheet["A9"] = "Naqd"
+            sheet["B9"] = self.current_payment_totals["naqd"]
+            sheet["A10"] = "Karta"
+            sheet["B10"] = self.current_payment_totals["karta"]
+            sheet["A11"] = "Click"
+            sheet["B11"] = self.current_payment_totals["click"]
+            sheet["A12"] = "Qarz"
+            sheet["B12"] = self.current_payment_totals["qarz"]
+            sheet["A13"] = "To'langan qarz"
+            sheet["B13"] = self.current_payment_totals["tolangan_qarz"]
 
-            header_row = 7
-            headers = ["Sana", "Mijoz", "Mahsulotlar", "To'lov", "Summa", "Foyda"]
+            header_row = 15
+            headers = ["Sana", "Mijoz", "Oyna", "Eni", "Bo'yi", "KVM", "To'lov", "Jami", "Foyda"]
             for column, header in enumerate(headers, start=1):
                 cell = sheet.cell(row=header_row, column=column, value=header)
                 cell.font = Font(bold=True)
 
-            for row_index, sale in enumerate(self.current_sales, start=header_row + 1):
-                customer_name = sale.customer.full_name if sale.customer else "-"
-                sheet.cell(row=row_index, column=1, value=sale.sale_date.strftime("%d.%m.%Y %H:%M"))
-                sheet.cell(row=row_index, column=2, value=customer_name)
-                sheet.cell(row=row_index, column=3, value=self.get_products_summary(sale))
-                sheet.cell(row=row_index, column=4, value=self.format_payment_breakdown(sale.payment_breakdown))
-                sheet.cell(row=row_index, column=5, value=sale.total_amount)
-                sheet.cell(row=row_index, column=6, value=sale.profit)
+            for row_index, record in enumerate(self.current_records, start=header_row + 1):
+                sheet.cell(row=row_index, column=1, value=record["date"].strftime("%d.%m.%Y %H:%M"))
+                sheet.cell(row=row_index, column=2, value=record["customer_name"])
+                sheet.cell(row=row_index, column=3, value=record["product_name"])
+                sheet.cell(row=row_index, column=4, value=format_meters(record["eni"]) if record["eni"] else "-")
+                sheet.cell(row=row_index, column=5, value=format_meters(record["boyi"]) if record["boyi"] else "-")
+                sheet.cell(
+                    row=row_index,
+                    column=6,
+                    value=format_square_meters(record["kvm"]) if record["row_type"] == "sale" else "-",
+                )
+                sheet.cell(row=row_index, column=7, value=record["payment_text"])
+                sheet.cell(row=row_index, column=8, value=record["amount"])
+                sheet.cell(row=row_index, column=9, value=record["profit"])
 
-            sheet.freeze_panes = "A8"
+            sheet.freeze_panes = "A16"
             sheet.column_dimensions["A"].width = 18
             sheet.column_dimensions["B"].width = 24
-            sheet.column_dimensions["C"].width = 34
-            sheet.column_dimensions["D"].width = 28
-            sheet.column_dimensions["E"].width = 16
-            sheet.column_dimensions["F"].width = 16
+            sheet.column_dimensions["C"].width = 28
+            sheet.column_dimensions["D"].width = 12
+            sheet.column_dimensions["E"].width = 12
+            sheet.column_dimensions["F"].width = 14
+            sheet.column_dimensions["G"].width = 28
+            sheet.column_dimensions["H"].width = 16
+            sheet.column_dimensions["I"].width = 16
 
             workbook.save(file_path)
             CustomAlert.show_success(self, "Muvaffaqiyat", f"Excel fayl saqlandi:\n{file_path}")
@@ -528,12 +646,13 @@ class ReportsPage(QWidget):
             CustomAlert.show_error(self, "Xato", get_user_friendly_message(e))
 
     def refresh(self):
-        """Refresh page"""
+        """Refresh page."""
         self.load_report()
 
     def apply_date_style(self, date_edit):
-        """Apply custom style to QDateEdit and QCalendarWidget"""
-        date_edit.setStyleSheet("""
+        """Apply custom style to QDateEdit and QCalendarWidget."""
+        date_edit.setStyleSheet(
+            """
             QDateEdit {
                 background-color: white;
                 border: 1px solid #CBD5E1;
@@ -567,7 +686,6 @@ class ReportsPage(QWidget):
                 border-top-color: #94A3B8;
             }
 
-            /* Calendar Widget */
             QCalendarWidget {
                 background-color: #F8FAFC;
                 border: 1px solid #CBD5E1;
@@ -615,4 +733,5 @@ class ReportsPage(QWidget):
             QCalendarWidget QAbstractItemView:disabled {
                 color: #94A3B8;
             }
-        """)
+            """
+        )

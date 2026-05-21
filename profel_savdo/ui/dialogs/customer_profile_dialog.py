@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QTabWidget, QWidget, QGroupBox)
 from PySide6.QtCore import Qt
 from services.customer_service import CustomerService
+from utils.formatter import format_window_size
 
 
 class CustomerProfileDialog(QDialog):
@@ -78,7 +79,7 @@ class CustomerProfileDialog(QDialog):
         self.sales_table = QTableWidget()
         self.sales_table.setColumnCount(6)
         self.sales_table.setHorizontalHeaderLabels([
-            "Sana", "Mahsulotlar", "Miqdor", "To'lov", "Summa", "Foyda"
+            "Sana", "Oyna", "O'lcham", "To'lov", "Summa", "Foyda"
         ])
         self.sales_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.sales_table.setAlternatingRowColors(True)
@@ -119,37 +120,40 @@ class CustomerProfileDialog(QDialog):
         """Load sales history"""
         try:
             sales = CustomerService.get_customer_sales(self.customer.id)
-            self.sales_table.setRowCount(len(sales))
+            sale_rows = []
+            for sale in sales:
+                payment_str = self.format_payment_breakdown(sale.payment_breakdown)
+                for item in sale.items:
+                    if not item.product:
+                        continue
+                    sale_rows.append((sale, item, payment_str))
 
-            for row, sale in enumerate(sales):
-                # Date
+            self.sales_table.setRowCount(len(sale_rows))
+
+            for row, (sale, item, payment_str) in enumerate(sale_rows):
                 date_str = sale.sale_date.strftime("%d.%m.%Y %H:%M")
                 self.sales_table.setItem(row, 0, QTableWidgetItem(date_str))
-
-                # Products
-                products_list = []
-                total_qty = 0
-                for item in sale.items:
-                    products_list.append(item.product.name)
-                    total_qty += item.quantity
-
-                products_str = ", ".join(products_list[:3])
-                if len(products_list) > 3:
-                    products_str += f" (+{len(products_list) - 3} ta)"
-                self.sales_table.setItem(row, 1, QTableWidgetItem(products_str))
-
-                # Quantity
-                self.sales_table.setItem(row, 2, QTableWidgetItem(f"{total_qty:.0f}"))
-
-                # Payment type
-                payment_str = self.format_payment_breakdown(sale.payment_breakdown)
+                self.sales_table.setItem(row, 1, QTableWidgetItem(item.product.name))
+                self.sales_table.setItem(
+                    row,
+                    2,
+                    QTableWidgetItem(
+                        format_window_size(
+                            item.eni or item.width,
+                            item.boyi or item.height,
+                            item.kvm or item.area_sqm or item.quantity,
+                        )
+                    ),
+                )
                 self.sales_table.setItem(row, 3, QTableWidgetItem(payment_str))
-
-                # Amount
-                self.sales_table.setItem(row, 4, QTableWidgetItem(f"{sale.total_amount:,.0f}"))
-
-                # Profit
-                self.sales_table.setItem(row, 5, QTableWidgetItem(f"{sale.profit:,.0f}"))
+                self.sales_table.setItem(
+                    row,
+                    4,
+                    QTableWidgetItem(
+                        f"{(item.kvm or item.area_sqm or item.quantity or 0) * (item.narx_per_kvm or item.price or 0):,.0f}"
+                    ),
+                )
+                self.sales_table.setItem(row, 5, QTableWidgetItem(f"{item.profit:,.0f}"))
 
         except Exception as e:
             print(f"Error loading sales: {e}")

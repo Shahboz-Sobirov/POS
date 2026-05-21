@@ -6,16 +6,46 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from datetime import datetime
 
-from utils.formatter import format_quantity
+from config.constants import APP_NAME
+from utils.formatter import format_square_meters, format_window_size
 
 
 class PDFGenerator:
     """PDF generation for invoices and reports"""
 
     @staticmethod
+    def _draw_sale_item(c, item, col_product, col_qty, col_price, col_total, right_margin, y, width):
+        """Draw one glass sale line with dimensions."""
+        product_name = item.product.name
+        if len(product_name) > 52:
+            product_name = product_name[:49] + "..."
+
+        eni = item.eni or item.width
+        boyi = item.boyi or item.height
+        area_sqm = item.kvm or item.area_sqm or item.quantity
+        price_per_kvm = item.narx_per_kvm or item.price
+        c.drawString(col_product, y, product_name)
+        c.drawRightString(col_qty + 40, y, format_square_meters(area_sqm))
+        c.drawRightString(col_price + 40, y, f"{price_per_kvm:,.0f}")
+        c.drawRightString(width - right_margin, y, f"{area_sqm * price_per_kvm:,.0f}")
+        y -= 12
+        c.setFont("Helvetica", 8)
+        c.drawString(col_product + 12, y, f"Eni: {eni or 0:g} m")
+        y -= 10
+        c.drawString(col_product + 12, y, f"Bo'yi: {boyi or 0:g} m")
+        y -= 10
+        c.drawString(col_product + 12, y, f"KVM: {format_square_meters(area_sqm)}")
+        y -= 10
+        c.drawString(col_product + 12, y, f"Narx/KVM: {price_per_kvm:,.0f} so'm")
+        y -= 10
+        c.drawString(col_product + 12, y, f"Jami: {area_sqm * price_per_kvm:,.0f} so'm")
+        c.setFont("Helvetica", 9)
+        return y - 12
+
+    @staticmethod
     def generate_invoice(sale, filepath):
         """
-        Generate invoice PDF (F8 preview or F12 real sale)
+        Generate final sale invoice PDF
         Professional compact invoice layout
         """
         c = canvas.Canvas(filepath, pagesize=A4)
@@ -33,7 +63,7 @@ class PDFGenerator:
 
         def draw_header(current_y):
             c.setFont("Helvetica-Bold", 16)
-            c.drawString(left_margin, current_y, "PROFEL SAVDO")
+            c.drawString(left_margin, current_y, APP_NAME)
 
             c.setFont("Helvetica", 10)
             c.drawString(left_margin, current_y - 18, f"Chek #{sale.id}")
@@ -50,9 +80,9 @@ class PDFGenerator:
             c.line(left_margin, next_y, width - right_margin, next_y)
             next_y -= 18
             c.setFont("Helvetica-Bold", 10)
-            c.drawString(col_product, next_y, "Mahsulot")
-            c.drawRightString(col_qty + 40, next_y, "Miqdor")
-            c.drawRightString(col_price + 40, next_y, "Narx")
+            c.drawString(col_product, next_y, "Oyna")
+            c.drawRightString(col_qty + 40, next_y, "KVM")
+            c.drawRightString(col_price + 40, next_y, "Narx/kvm")
             c.drawRightString(width - right_margin, next_y, "Jami")
             next_y -= 6
             c.line(left_margin, next_y, width - right_margin, next_y)
@@ -67,15 +97,9 @@ class PDFGenerator:
                 y = draw_header(y)
                 c.setFont("Helvetica", 9)
 
-            product_name = item.product.name
-            if len(product_name) > 52:
-                product_name = product_name[:49] + "..."
-
-            c.drawString(col_product, y, product_name)
-            c.drawRightString(col_qty + 40, y, format_quantity(item.quantity, item.product.unit))
-            c.drawRightString(col_price + 40, y, f"{item.price:,.0f}")
-            c.drawRightString(width - right_margin, y, f"{item.quantity * item.price:,.0f}")
-            y -= 16
+            y = PDFGenerator._draw_sale_item(
+                c, item, col_product, col_qty, col_price, col_total, right_margin, y, width
+            )
 
         c.line(left_margin, y, width - right_margin, y)
         y -= 22
@@ -112,6 +136,82 @@ class PDFGenerator:
         c.save()
 
     @staticmethod
+    def generate_preview_invoice(preview_sale, filepath):
+        """
+        Generate preview invoice PDF (F8 preview only)
+        Same compact A4 layout without transaction or payment details
+        """
+        c = canvas.Canvas(filepath, pagesize=A4)
+        width, height = A4
+        left_margin = 32
+        right_margin = 32
+        top_margin = 38
+        bottom_margin = 36
+        content_width = width - left_margin - right_margin
+        col_product = left_margin
+        col_qty = left_margin + content_width * 0.58
+        col_price = left_margin + content_width * 0.76
+        col_total = left_margin + content_width * 0.90
+        y = height - top_margin
+
+        def draw_header(current_y):
+            c.setFont("Helvetica-Bold", 16)
+            c.drawString(left_margin, current_y, APP_NAME)
+
+            c.setFont("Helvetica", 10)
+            c.drawString(left_margin, current_y - 18, "Hisob-Chek")
+            c.drawString(
+                left_margin + 120,
+                current_y - 18,
+                f"Sana: {preview_sale.sale_date.strftime('%d.%m.%Y %H:%M')}"
+            )
+
+            next_y = current_y - 38
+            if preview_sale.customer:
+                c.drawString(left_margin, next_y, f"Mijoz: {preview_sale.customer.full_name}")
+                next_y -= 15
+                if preview_sale.customer.phone:
+                    c.drawString(left_margin, next_y, f"Tel: {preview_sale.customer.phone}")
+                    next_y -= 15
+
+            c.line(left_margin, next_y, width - right_margin, next_y)
+            next_y -= 18
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(col_product, next_y, "Oyna")
+            c.drawRightString(col_qty + 40, next_y, "KVM")
+            c.drawRightString(col_price + 40, next_y, "Narx/kvm")
+            c.drawRightString(width - right_margin, next_y, "Jami")
+            next_y -= 6
+            c.line(left_margin, next_y, width - right_margin, next_y)
+            return next_y - 16
+
+        y = draw_header(y)
+        c.setFont("Helvetica", 9)
+        for item in preview_sale.items:
+            if y < bottom_margin + 110:
+                c.showPage()
+                y = height - top_margin
+                y = draw_header(y)
+                c.setFont("Helvetica", 9)
+
+            y = PDFGenerator._draw_sale_item(
+                c, item, col_product, col_qty, col_price, col_total, right_margin, y, width
+            )
+
+        c.line(left_margin, y, width - right_margin, y)
+        y -= 22
+
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(col_price - 10, y, "JAMI:")
+        c.drawRightString(width - right_margin, y, f"{preview_sale.total_amount:,.0f} so'm")
+
+        c.setFont("Helvetica", 8)
+        c.drawString(left_margin, 42, "Rahmat! Yana kuting!")
+        c.drawString(left_margin, 28, f"Kassir: {preview_sale.cashier}")
+
+        c.save()
+
+    @staticmethod
     def generate_report(sales, filepath, start_date, end_date):
         """
         Generate multi-sale report PDF
@@ -122,7 +222,7 @@ class PDFGenerator:
 
         # Header
         c.setFont("Helvetica-Bold", 14)
-        c.drawString(50, height - 50, "SAVDO HISOBOTI")
+        c.drawString(50, height - 50, f"{APP_NAME} HISOBOTI")
 
         c.setFont("Helvetica", 10)
         date_range = f"{start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')}"
@@ -132,22 +232,39 @@ class PDFGenerator:
         total_sales = len(sales)
         total_revenue = sum(s.total_amount for s in sales)
         total_profit = sum(s.profit for s in sales)
+        total_kvm = 0
+        top_glass_totals = {}
+        for sale in sales:
+            for item in sale.items:
+                if not item.product:
+                    continue
+                item_kvm = item.kvm or item.area_sqm or item.quantity or 0
+                total_kvm += item_kvm
+                top_glass_totals[item.product.name] = top_glass_totals.get(item.product.name, 0) + item_kvm
+
+        top_glass = "-"
+        if top_glass_totals:
+            glass_name, glass_kvm = max(top_glass_totals.items(), key=lambda item: item[1])
+            top_glass = f"{glass_name} ({format_square_meters(glass_kvm)})"
 
         c.drawString(50, height - 90, f"Savdolar soni: {total_sales}")
         c.drawString(200, height - 90, f"Daromad: {total_revenue:,.0f} so'm")
         c.drawString(400, height - 90, f"Foyda: {total_profit:,.0f} so'm")
+        c.drawString(50, height - 108, f"Sotilgan KVM: {format_square_meters(total_kvm)}")
+        c.drawString(250, height - 108, f"Eng ko'p sotilgan oyna: {top_glass[:38]}")
 
         # Line
-        c.line(50, height - 100, width - 50, height - 100)
+        c.line(50, height - 118, width - 50, height - 118)
 
         # Table
-        y_offset = 120
+        y_offset = 138
         c.setFont("Helvetica-Bold", 9)
         c.drawString(50, height - y_offset, "Sana")
         c.drawString(130, height - y_offset, "Mijoz")
-        c.drawString(250, height - y_offset, "To'lov")
-        c.drawString(350, height - y_offset, "Summa")
-        c.drawString(450, height - y_offset, "Foyda")
+        c.drawString(240, height - y_offset, "Oyna")
+        c.drawString(360, height - y_offset, "KVM")
+        c.drawString(420, height - y_offset, "Summa")
+        c.drawString(500, height - y_offset, "Foyda")
 
         y_offset += 5
         c.line(50, height - y_offset, width - 50, height - y_offset)
@@ -162,13 +279,17 @@ class PDFGenerator:
 
             date_str = sale.sale_date.strftime("%d.%m %H:%M")
             customer_name = sale.customer.full_name[:15] if sale.customer else "-"
-            payment_type = sale.payment_type[:10]
+            product_names = ", ".join(
+                item.product.name for item in sale.items if getattr(item, "product", None)
+            )[:20] or "-"
+            sale_kvm = sum(item.kvm or item.area_sqm or item.quantity or 0 for item in sale.items)
 
             c.drawString(50, height - y_offset, date_str)
             c.drawString(130, height - y_offset, customer_name)
-            c.drawString(250, height - y_offset, payment_type)
-            c.drawString(350, height - y_offset, f"{sale.total_amount:,.0f}")
-            c.drawString(450, height - y_offset, f"{sale.profit:,.0f}")
+            c.drawString(240, height - y_offset, product_names)
+            c.drawString(360, height - y_offset, format_square_meters(sale_kvm))
+            c.drawString(420, height - y_offset, f"{sale.total_amount:,.0f}")
+            c.drawString(500, height - y_offset, f"{sale.profit:,.0f}")
 
             y_offset += 12
 

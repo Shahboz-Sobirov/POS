@@ -12,7 +12,7 @@ class ShortcutManager:
     SHORTCUTS = {
         # Navigation
         'F1': 'Sotuv',
-        'F2': 'Mahsulotlar',
+        'F2': 'Oynalar',
         'F3': 'Mijozlar',
         'F4': 'Hisobot',
         'F5': 'Qarz To\'lash',

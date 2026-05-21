@@ -9,6 +9,7 @@ from models.sale import Sale, SaleItem
 from models.product import Product
 from models.customer import Customer
 from services.audit_service import AuditService
+from utils.formatter import calculate_window_metrics, parse_decimal
 
 
 class SaleService:
@@ -36,15 +37,25 @@ class SaleService:
             for item_data in items:
                 product = session.query(Product).filter_by(id=item_data['product_id']).first()
                 if not product:
-                    raise ValueError(f"Product {item_data['product_id']} not found")
+                    raise ValueError(f"Oyna topilmadi: {item_data['product_id']}")
 
-                quantity = item_data['quantity']
-                price = item_data['price']
+                item = SaleService._normalize_glass_item(item_data)
+                eni = item['eni']
+                boyi = item['boyi']
+                kvm = item['kvm']
+                quantity = item['quantity']
+                price = item['narx_per_kvm']
                 cost_price = product.cost_price
 
+                if kvm <= 0:
+                    raise ValueError("Oyna kvm 0 dan katta bo'lishi kerak")
+
+                if quantity > product.quantity:
+                    raise ValueError(f"{product.name} uchun omborda yetarli kvm yo'q")
+
                 # Calculate totals
-                total_amount += price * quantity
-                total_profit += (price - cost_price) * quantity
+                total_amount += price * kvm
+                total_profit += (price - cost_price) * kvm
 
             # Create sale with calculated totals
             sale = Sale(
@@ -63,16 +74,27 @@ class SaleService:
             for item_data in items:
                 product = session.query(Product).filter_by(id=item_data['product_id']).first()
 
-                quantity = item_data['quantity']
-                price = item_data['price']
+                item = SaleService._normalize_glass_item(item_data)
+                eni = item['eni']
+                boyi = item['boyi']
+                kvm = item['kvm']
+                quantity = item['quantity']
+                price = item['narx_per_kvm']
                 cost_price = product.cost_price
-                item_profit = (price - cost_price) * quantity
+                item_profit = (price - cost_price) * kvm
 
                 # Create sale item
                 sale_item = SaleItem(
                     sale_id=sale.id,
                     product_id=product.id,
                     quantity=quantity,
+                    eni=eni,
+                    boyi=boyi,
+                    kvm=kvm,
+                    narx_per_kvm=price,
+                    width=eni,
+                    height=boyi,
+                    area_sqm=kvm,
                     price=price,
                     cost_price=cost_price,
                     profit=item_profit
@@ -80,7 +102,7 @@ class SaleService:
                 session.add(sale_item)
 
                 # Update stock
-                product.quantity -= quantity
+                product.quantity -= kvm
 
             # Update customer debt if needed
             if customer_id and payment_breakdown and payment_breakdown.get('qarz', 0) > 0:
@@ -119,6 +141,42 @@ class SaleService:
             return sales
         finally:
             session.close()
+
+    @staticmethod
+    def _normalize_glass_item(item_data):
+        """Normalize new Uzbek glass fields while keeping legacy callers working."""
+        eni_raw = item_data.get('eni', item_data.get('width'))
+        boyi_raw = item_data.get('boyi', item_data.get('height'))
+
+        explicit_kvm = item_data.get('kvm', item_data.get('area_sqm', item_data.get('quantity')))
+        eni = None
+        boyi = None
+
+        if eni_raw is not None and boyi_raw is not None:
+            metrics = calculate_window_metrics(eni_raw, boyi_raw)
+            eni = metrics['eni']
+            boyi = metrics['boyi']
+            kvm = metrics['kvm']
+        else:
+            kvm = parse_decimal(explicit_kvm, "KVM")
+
+        if kvm <= 0:
+            raise ValueError("Oyna kvm 0 dan katta bo'lishi kerak")
+
+        price = parse_decimal(
+            item_data.get('narx_per_kvm', item_data.get('price', 0)),
+            "Narx/KVM"
+        )
+        if price <= 0:
+            raise ValueError("Narx/kvm 0 dan katta bo'lishi kerak")
+
+        return {
+            'eni': eni,
+            'boyi': boyi,
+            'kvm': kvm,
+            'quantity': kvm,
+            'narx_per_kvm': price,
+        }
 
     @staticmethod
     def get_by_id(sale_id):

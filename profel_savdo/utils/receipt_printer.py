@@ -8,6 +8,7 @@ ReportLab-based invoice layout that prints more clearly on standard paper.
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
 from datetime import datetime
 from types import SimpleNamespace
@@ -17,7 +18,15 @@ from PySide6.QtGui import QAction, QPainter, QPageLayout, QPageSize
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtPrintSupport import QPrinter, QPrinterInfo
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QPushButton, QToolBar, QVBoxLayout
+from PySide6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QMessageBox,
+    QPushButton,
+    QToolBar,
+    QVBoxLayout,
+)
 
 from reports.pdf_generator import PDFGenerator
 
@@ -29,7 +38,7 @@ class PdfPreviewDialog(QDialog):
         super().__init__(parent)
         self.pdf_path = pdf_path
         self.document = QPdfDocument(self)
-        self.setWindowTitle("Chek Preview")
+        self.setWindowTitle("Hisob-Chek Preview")
         self.resize(1120, 820)
         self._setup_ui()
 
@@ -69,6 +78,14 @@ class PdfPreviewDialog(QDialog):
         layout.addWidget(self.pdf_view)
 
         button_layout = QHBoxLayout()
+        print_btn = QPushButton("Chop Etish")
+        print_btn.clicked.connect(self.print_pdf)
+        button_layout.addWidget(print_btn)
+
+        export_btn = QPushButton("Eksport PDF")
+        export_btn.clicked.connect(self.export_pdf)
+        button_layout.addWidget(export_btn)
+
         button_layout.addStretch()
 
         close_btn = QPushButton("Yopish")
@@ -91,6 +108,30 @@ class PdfPreviewDialog(QDialog):
 
     def fit_page(self) -> None:
         self.pdf_view.setZoomMode(QPdfView.ZoomMode.FitInView)
+
+    def print_pdf(self) -> None:
+        try:
+            ReceiptPrinter.print_pdf_file(self.pdf_path)
+            QMessageBox.information(self, "Muvaffaqiyat", "Chek printerga yuborildi.")
+        except Exception as exc:
+            QMessageBox.warning(self, "Printer xatosi", str(exc))
+
+    def export_pdf(self) -> None:
+        suggested_name = f"hisob-chek-preview-{datetime.now().strftime('%Y%m%d-%H%M%S')}.pdf"
+        export_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Preview PDF saqlash",
+            suggested_name,
+            "PDF Files (*.pdf)"
+        )
+        if not export_path:
+            return
+
+        try:
+            shutil.copyfile(self.pdf_path, export_path)
+            QMessageBox.information(self, "Muvaffaqiyat", "Preview PDF saqlandi.")
+        except Exception as exc:
+            QMessageBox.warning(self, "Eksport xatosi", str(exc))
 
     def closeEvent(self, event) -> None:
         try:
@@ -117,15 +158,16 @@ class ReceiptPrinter:
             return False
 
     @staticmethod
-    def _build_sale_like_object(sale, cart_items, payment_breakdown, cashier_name, customer_name=None):
-        """Build a temporary sale-like object compatible with PDFGenerator."""
-        sale_id = getattr(sale, "id", None) or "PREVIEW"
-        sale_date = getattr(sale, "sale_date", None) or datetime.now()
-
+    def _build_customer(customer_name=None):
+        """Build optional lightweight customer object for receipt rendering."""
         customer = None
         if customer_name:
             customer = SimpleNamespace(full_name=customer_name, phone=None)
+        return customer
 
+    @staticmethod
+    def _build_receipt_items(cart_items):
+        """Build lightweight receipt items from cart contents."""
         items = []
         total_amount = 0.0
         for item in cart_items or []:
@@ -136,14 +178,45 @@ class ReceiptPrinter:
             sale_item = SimpleNamespace(
                 product=product,
                 quantity=item["quantity"],
+                eni=item.get("eni", item.get("width")),
+                boyi=item.get("boyi", item.get("height")),
+                kvm=item.get("kvm", item.get("area_sqm", item["quantity"])),
+                narx_per_kvm=item.get("narx_per_kvm", item["price"]),
+                width=item.get("width"),
+                height=item.get("height"),
+                area_sqm=item.get("area_sqm", item["quantity"]),
                 price=item["price"],
             )
             items.append(sale_item)
-            total_amount += float(item["quantity"]) * float(item["price"])
+            total_amount += float(item.get("kvm", item.get("area_sqm", item["quantity"]))) * float(
+                item.get("narx_per_kvm", item["price"])
+            )
+
+        return items, total_amount
+
+    @staticmethod
+    def _build_preview_sale_object(cart_items, cashier_name, customer_name=None):
+        """Build receipt-only preview data without payment or transaction fields."""
+        customer = ReceiptPrinter._build_customer(customer_name)
+        items, total_amount = ReceiptPrinter._build_receipt_items(cart_items)
 
         return SimpleNamespace(
-            id=sale_id,
-            sale_date=sale_date,
+            sale_date=datetime.now(),
+            customer=customer,
+            items=items,
+            total_amount=total_amount,
+            cashier=cashier_name or "Admin",
+        )
+
+    @staticmethod
+    def _build_final_sale_object(sale, cart_items, payment_breakdown, cashier_name, customer_name=None):
+        """Build final receipt data while preserving finalized sale fields."""
+        customer = ReceiptPrinter._build_customer(customer_name)
+        items, total_amount = ReceiptPrinter._build_receipt_items(cart_items)
+
+        return SimpleNamespace(
+            id=getattr(sale, "id", None),
+            sale_date=getattr(sale, "sale_date", None) or datetime.now(),
             customer=customer,
             items=items,
             total_amount=total_amount,
@@ -152,20 +225,35 @@ class ReceiptPrinter:
         )
 
     @staticmethod
-    def _create_invoice_pdf(sale, cart_items, payment_breakdown, cashier_name="Admin", customer_name=None) -> str:
-        """Generate the temporary invoice PDF."""
+    def generate_preview_receipt(cart_items, cashier_name="Admin", customer_name=None) -> str:
+        """Generate preview receipt PDF without saving sale data."""
         temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
         temp_path = temp_file.name
         temp_file.close()
 
-        sale_like = ReceiptPrinter._build_sale_like_object(
+        preview_sale = ReceiptPrinter._build_preview_sale_object(
+            cart_items=cart_items,
+            cashier_name=cashier_name,
+            customer_name=customer_name,
+        )
+        PDFGenerator.generate_preview_invoice(preview_sale, temp_path)
+        return temp_path
+
+    @staticmethod
+    def generate_final_receipt(sale, cart_items, payment_breakdown, cashier_name="Admin", customer_name=None) -> str:
+        """Generate final saved-sale receipt PDF with payment details."""
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        temp_path = temp_file.name
+        temp_file.close()
+
+        final_sale = ReceiptPrinter._build_final_sale_object(
             sale=sale,
             cart_items=cart_items,
             payment_breakdown=payment_breakdown,
             cashier_name=cashier_name,
             customer_name=customer_name,
         )
-        PDFGenerator.generate_invoice(sale_like, temp_path)
+        PDFGenerator.generate_invoice(final_sale, temp_path)
         return temp_path
 
     @staticmethod
@@ -219,16 +307,25 @@ class ReceiptPrinter:
             document.close()
 
     @staticmethod
-    def preview_receipt(parent, cart_items, payment_breakdown, cashier_name="Admin", customer_name=None):
+    def print_pdf_file(pdf_path: str) -> None:
+        """Print an already-generated PDF file to the default printer."""
+        if not pdf_path or not os.path.exists(pdf_path):
+            raise RuntimeError("PDF fayl topilmadi")
+        if not ReceiptPrinter.is_printer_available():
+            raise RuntimeError("Printer topilmadi")
+
+        printer = ReceiptPrinter._create_printer()
+        ReceiptPrinter._render_pdf_to_printer(printer, pdf_path)
+
+    @staticmethod
+    def preview_receipt(parent, cart_items, cashier_name="Admin", customer_name=None):
         """Preview the invoice PDF without saving a sale."""
         if not cart_items:
             return False, "Savat bo'sh"
 
         try:
-            pdf_path = ReceiptPrinter._create_invoice_pdf(
-                sale=None,
+            pdf_path = ReceiptPrinter.generate_preview_receipt(
                 cart_items=cart_items,
-                payment_breakdown=payment_breakdown,
                 cashier_name=cashier_name,
                 customer_name=customer_name,
             )
@@ -237,6 +334,32 @@ class ReceiptPrinter:
             return True, "Chek preview ochildi"
         except Exception as exc:
             return False, f"Preview xatosi: {str(exc)}"
+
+    @staticmethod
+    def print_preview_receipt(cart_items, cashier_name="Admin", customer_name=None):
+        """Print preview receipt without saving sale or including payment details."""
+        if not cart_items:
+            return False, "Savat bo'sh"
+        if not ReceiptPrinter.is_printer_available():
+            return False, "Printer topilmadi"
+
+        pdf_path = None
+        try:
+            pdf_path = ReceiptPrinter.generate_preview_receipt(
+                cart_items=cart_items,
+                cashier_name=cashier_name,
+                customer_name=customer_name,
+            )
+            ReceiptPrinter.print_pdf_file(pdf_path)
+            return True, "Preview chek printerga yuborildi"
+        except Exception as exc:
+            return False, f"Printer xatosi: {str(exc)}"
+        finally:
+            if pdf_path and os.path.exists(pdf_path):
+                try:
+                    os.remove(pdf_path)
+                except OSError:
+                    pass
 
     @staticmethod
     def print_receipt(sale, cart_items, payment_breakdown, cashier_name="Admin", customer_name=None):
@@ -248,15 +371,14 @@ class ReceiptPrinter:
 
         pdf_path = None
         try:
-            pdf_path = ReceiptPrinter._create_invoice_pdf(
+            pdf_path = ReceiptPrinter.generate_final_receipt(
                 sale=sale,
                 cart_items=cart_items,
                 payment_breakdown=payment_breakdown,
                 cashier_name=cashier_name,
                 customer_name=customer_name,
             )
-            printer = ReceiptPrinter._create_printer()
-            ReceiptPrinter._render_pdf_to_printer(printer, pdf_path)
+            ReceiptPrinter.print_pdf_file(pdf_path)
             return True, "Chek printerga yuborildi"
         except Exception as exc:
             return False, f"Printer xatosi: {str(exc)}"

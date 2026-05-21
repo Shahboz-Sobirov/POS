@@ -127,6 +127,9 @@ def get_user_friendly_message(exception):
     """
     error_str = str(exception).lower()
 
+    if isinstance(exception, ValueError):
+        return str(exception)
+
     # Database errors
     if "unique constraint" in error_str or "duplicate" in error_str:
         return "Bu nom allaqachon mavjud"

@@ -16,6 +16,7 @@ from utils.error_logger import log_exception, get_user_friendly_message
 class CategoriesPage(QWidget):
     def __init__(self):
         super().__init__()
+        self.current_categories = []
         self.setup_ui()
 
     def setup_ui(self):
@@ -73,6 +74,7 @@ class CategoriesPage(QWidget):
         """Load categories"""
         try:
             categories = CategoryService.get_all()
+            self.current_categories = list(categories)
             self.table.setRowCount(len(categories))
 
             for row, cat in enumerate(categories):
@@ -98,7 +100,8 @@ class CategoriesPage(QWidget):
                 CustomAlert.show_success(self, "Muvaffaqiyat", "Kategoriya qo'shildi!")
             except Exception as e:
                 log_exception(e, "add_category")
-                CustomAlert.show_error(self, "Xato", get_user_friendly_message(e))
+                message = str(e) if isinstance(e, ValueError) else get_user_friendly_message(e)
+                CustomAlert.show_error(self, "Xato", message)
 
     def edit_category(self):
         """Edit category"""
@@ -108,8 +111,10 @@ class CategoriesPage(QWidget):
             return
 
         row = selected[0].row()
-        categories = CategoryService.get_all()
-        category = categories[row]
+        if row >= len(self.current_categories):
+            CustomAlert.show_warning(self, "Ogohlantirish", "Tanlangan kategoriya topilmadi!")
+            return
+        category = self.current_categories[row]
 
         dialog = CategoryDialog(self, category)
         if dialog.exec() == QDialog.Accepted:
@@ -124,7 +129,8 @@ class CategoriesPage(QWidget):
                 CustomAlert.show_success(self, "Muvaffaqiyat", "Kategoriya tahrirlandi!")
             except Exception as e:
                 log_exception(e, "edit_category")
-                CustomAlert.show_error(self, "Xato", get_user_friendly_message(e))
+                message = str(e) if isinstance(e, ValueError) else get_user_friendly_message(e)
+                CustomAlert.show_error(self, "Xato", message)
 
     def delete_category(self):
         """Delete category"""
@@ -135,8 +141,10 @@ class CategoriesPage(QWidget):
 
         if CustomAlert.show_confirm(self, "Tasdiqlash", "Kategoriyani o'chirishni xohlaysizmi?"):
             row = selected[0].row()
-            categories = CategoryService.get_all()
-            category = categories[row]
+            if row >= len(self.current_categories):
+                CustomAlert.show_warning(self, "Ogohlantirish", "Tanlangan kategoriya topilmadi!")
+                return
+            category = self.current_categories[row]
 
             try:
                 CategoryService.delete(category.id)
@@ -144,7 +152,8 @@ class CategoriesPage(QWidget):
                 CustomAlert.show_success(self, "Muvaffaqiyat", "Kategoriya o'chirildi!")
             except Exception as e:
                 log_exception(e, "delete_category")
-                CustomAlert.show_error(self, "Xato", get_user_friendly_message(e))
+                message = str(e) if isinstance(e, ValueError) else get_user_friendly_message(e)
+                CustomAlert.show_error(self, "Xato", message)
 
     def refresh(self):
         """Refresh page"""
