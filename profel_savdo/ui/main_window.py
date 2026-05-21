@@ -64,7 +64,7 @@ class MainWindow(QMainWindow):
 
         self.content_stack = QStackedWidget()
         self.sales_page = SalesPage(self.cashier_name)
-        self.products_page = ProductsPage()
+        self.products_page = ProductsPage(self.cashier_name)
         self.customers_page = CustomersPage()
         self.reports_page = ReportsPage()
         self.debt_payment_page = DebtPaymentPage(self.cashier_name)

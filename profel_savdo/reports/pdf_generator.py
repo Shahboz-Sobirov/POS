@@ -367,7 +367,6 @@ def _draw_grand_total(doc, grand_kvm, grand_sum,
             pay_w = CONTENT_W / 2
             for key, amount in active.items():
                 label, lcolor = pay_labels.get(key, (key.capitalize(), C_ACCENT))
-                # Fon strip
                 doc.filled_rect(x0, doc.y - 14, pay_w, 14,
                                 colors.HexColor("#f0f9ff"))
                 doc.text(x0 + 6, doc.y - 10, label,
@@ -375,10 +374,6 @@ def _draw_grand_total(doc, grand_kvm, grand_sum,
                 doc.rtext(x0 + pay_w - 6, doc.y - 10,
                           f"{_fmt_sum(amount)} so'm",
                           "Helvetica-Bold", 9, lcolor)
-                # O'ng tomonda tur belgisi
-                _badge = {
-                    'naqd': '💵', 'karta': '💳', 'click': '📱', 'qarz': '📋'
-                }
                 doc.y -= 15
 
             doc.y -= 4
@@ -417,13 +412,18 @@ def _draw_footer(doc, note=None):
 
 def _item_to_row(item):
     """sale.item yoki cart_item dan (eni, boyi, qty, kvm, narx) oladi."""
-    eni = float(item.eni or item.width or 0)
-    boyi = float(item.boyi or item.height or 0)
-    kvm = float(item.kvm or item.area_sqm or item.quantity or 0)
-    narx = float(item.narx_per_kvm or item.price or 0)
-    # qty = dona soni — lekin bizda har qator = 1 ta o'lchov
-    # KolVo rasmda dona ko'rsatilgan; bizda quantity = kvm bo'lishi mumkin
-    # Agar kvm = eni*boyi*n bo'lsa, dona = n
+    # is not None tekshiruvi — 0.0 falsy bo'lishi uchun
+    eni_val  = item.eni  if item.eni  is not None else item.width
+    boyi_val = item.boyi if item.boyi is not None else item.height
+    kvm_val  = item.kvm  if item.kvm  is not None else item.area_sqm
+    if kvm_val is None:
+        kvm_val = item.quantity
+
+    eni  = float(eni_val  or 0)
+    boyi = float(boyi_val or 0)
+    kvm  = float(kvm_val  or 0)
+    narx = float(item.narx_per_kvm if item.narx_per_kvm is not None else item.price or 0)
+
     if eni > 0 and boyi > 0:
         one_kvm = eni * boyi
         qty = round(kvm / one_kvm) if one_kvm > 0 else 1

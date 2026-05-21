@@ -109,9 +109,9 @@ class SaleService:
             session.refresh(sale)
 
             # ── 5-qadam: audit log (session commit dan KEYIN) ─────────────
+            # expunge DAN OLDIN customer query qilamiz — session hali ochiq
             customer_name = None
             if customer_id:
-                # Yangi query — committed data dan
                 cust = session.query(Customer).filter_by(id=customer_id).first()
                 if cust:
                     customer_name = cust.full_name
@@ -129,7 +129,7 @@ class SaleService:
             session.rollback()
             raise e
         finally:
-            session.close()
+            Session.remove()  # scoped session uchun to'g'ri yopish usuli
 
     # ── Dimension extractor ───────────────────────────────────────────────
 
@@ -167,7 +167,7 @@ class SaleService:
             session.expunge_all()
             return sales
         finally:
-            session.close()
+            Session.remove()
 
     @staticmethod
     def get_by_id(sale_id):
@@ -178,7 +178,7 @@ class SaleService:
                 session.expunge(sale)
             return sale
         finally:
-            session.close()
+            Session.remove()
 
     @staticmethod
     def get_by_date_range(start_date, end_date):
@@ -195,7 +195,7 @@ class SaleService:
             session.expunge_all()
             return sales
         finally:
-            session.close()
+            Session.remove()
 
     @staticmethod
     def get_daily_report(date):
@@ -228,7 +228,7 @@ class SaleService:
                 'payment_totals': payment_totals,
             }
         finally:
-            session.close()
+            Session.remove()
 
     @staticmethod
     def update_stock(product_id, quantity_change):
@@ -263,4 +263,4 @@ class SaleService:
             session.rollback()
             raise e
         finally:
-            session.close()
+            Session.remove()  # update_stock uchun ham Session.remove()

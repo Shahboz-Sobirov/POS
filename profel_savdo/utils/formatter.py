@@ -25,31 +25,17 @@ def format_decimal(value, decimals=2):
 def format_quantity(value, unit):
     """
     Format quantity based on unit type
-
-    Args:
-        value: Quantity value (float or int)
-        unit: Unit name (str)
-
-    Returns:
-        Formatted string with quantity and unit
-
-    Examples:
-        format_quantity(50.00, "dona") -> "50 dona"
-        format_quantity(100.00, "sht") -> "100 sht"
-        format_quantity(12.5, "metr") -> "12.5 metr"
-        format_quantity(2.75, "m2") -> "2.75 m2"
     """
+    if value is None:
+        value = 0
     if not unit:
         unit = "dona"
 
     unit_lower = unit.lower().strip()
 
-    # Check if unit requires integer format
     if unit_lower in INTEGER_UNITS:
-        # Format as integer
-        return f"{int(value)} {unit}"
+        return f"{int(float(value))} {unit}"
     else:
-        # Format with decimals (remove trailing zeros)
         formatted = format_decimal(value)
         return f"{formatted} {unit}"
 
@@ -57,28 +43,17 @@ def format_quantity(value, unit):
 def format_quantity_display(value, unit):
     """
     Format quantity for display in tables (without unit)
-
-    Args:
-        value: Quantity value (float or int)
-        unit: Unit name (str)
-
-    Returns:
-        Formatted quantity string
-
-    Examples:
-        format_quantity_display(50.00, "dona") -> "50"
-        format_quantity_display(12.5, "metr") -> "12.5"
     """
+    if value is None:
+        value = 0
     if not unit:
         unit = "dona"
 
     unit_lower = unit.lower().strip()
 
-    # Check if unit requires integer format
     if unit_lower in INTEGER_UNITS:
-        return str(int(value))
+        return str(int(float(value)))
     else:
-        # Format with decimals (remove trailing zeros)
         return format_decimal(value)
 
 

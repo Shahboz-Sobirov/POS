@@ -53,7 +53,6 @@ def main():
     try:
         set_windows_app_id()
 
-        # High DPI support
         QApplication.setHighDpiScaleFactorRoundingPolicy(
             Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
         )
@@ -65,22 +64,36 @@ def main():
         if icon_path:
             app.setWindowIcon(QIcon(icon_path))
 
-        # Font
         font = QFont("Segoe UI", 12)
         font.setHintingPreference(QFont.PreferFullHinting)
         app.setFont(font)
 
+        # ── 1. Ma'lumotlar bazasini BIRINCHI ishga tushirish ──────────────
+        # LockPanel dan oldin init_db — DB xatosi darhol ko'rinadi
+        try:
+            init_db()
+        except Exception as db_err:
+            from PySide6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                None,
+                "Ma'lumotlar bazasi xatosi",
+                f"Dastur ma'lumotlar bazasiga ulana olmadi:\n\n{db_err}\n\n"
+                "Iltimos administratorga murojaat qiling."
+            )
+            sys.exit(1)
+
+        # ── 2. Parol paneli ───────────────────────────────────────────────
         lock_panel = LockPanel()
         if icon_path:
             lock_panel.setWindowIcon(QIcon(icon_path))
         if lock_panel.exec() != LockPanel.Accepted:
             sys.exit(0)
 
-        # Initialize database
-        init_db()
+        # Kassir nomini lock paneldan olish
+        cashier_name = getattr(lock_panel, 'cashier_name', None) or "Admin"
 
-        # Main window
-        window = MainWindow(cashier_name="Admin")
+        # ── 3. Asosiy oyna ────────────────────────────────────────────────
+        window = MainWindow(cashier_name=cashier_name)
         if icon_path:
             window.setWindowIcon(QIcon(icon_path))
         window.showMaximized()

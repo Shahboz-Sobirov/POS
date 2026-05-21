@@ -273,7 +273,7 @@ class ReportsPage(QWidget):
                     continue
                 for key, value in sale.payment_breakdown.items():
                     if key in payment_totals:
-                        payment_totals[key] += value
+                        payment_totals[key] += float(value or 0)
 
             payment_totals["tolangan_qarz"] = sum(
                 payment.amount or 0 for payment in debt_payments

@@ -65,22 +65,27 @@ class ReceiptPrinter:
                 name=item["product"].name,
                 unit=getattr(item["product"], "unit", "kvm"),
             )
+            # kvm uchun is not None tekshiruvi — 0.0 falsy bo'lgani uchun
+            kvm_val = item.get("kvm")
+            if kvm_val is None:
+                kvm_val = item.get("area_sqm")
+            if kvm_val is None:
+                kvm_val = item.get("quantity", 0)
+
             sale_item = SimpleNamespace(
                 product=product,
-                quantity=item["quantity"],
-                eni=item.get("eni", item.get("width")),
-                boyi=item.get("boyi", item.get("height")),
-                kvm=item.get("kvm", item.get("area_sqm", item["quantity"])),
-                narx_per_kvm=item.get("narx_per_kvm", item["price"]),
+                quantity=item.get("quantity", kvm_val),
+                eni=item.get("eni") if item.get("eni") is not None else item.get("width"),
+                boyi=item.get("boyi") if item.get("boyi") is not None else item.get("height"),
+                kvm=kvm_val,
+                narx_per_kvm=item.get("narx_per_kvm", item.get("price", 0)),
                 width=item.get("width"),
                 height=item.get("height"),
-                area_sqm=item.get("area_sqm", item["quantity"]),
-                price=item["price"],
+                area_sqm=item.get("area_sqm", kvm_val),
+                price=item.get("price", item.get("narx_per_kvm", 0)),
             )
             items.append(sale_item)
-            total_amount += float(
-                item.get("kvm", item.get("area_sqm", item["quantity"]))
-            ) * float(item.get("narx_per_kvm", item["price"]))
+            total_amount += float(kvm_val) * float(item.get("narx_per_kvm", item.get("price", 0)))
         return items, total_amount
 
     @staticmethod

@@ -272,7 +272,7 @@ class ProductService:
 
     @staticmethod
     def update_stock(product_id, quantity_change):
-        """Update product stock."""
+        """Update product stock. Manfiy bo'lishdan himoya."""
         session = Session()
         try:
             product = session.query(Product).options(
@@ -282,7 +282,14 @@ class ProductService:
             if not product:
                 raise ValueError("Oyna topilmadi")
 
-            product.quantity += quantity_change
+            new_qty = float(product.quantity or 0) + float(quantity_change)
+            if new_qty < 0:
+                raise ValueError(
+                    f"Ombor manfiy bo'lib ketadi: "
+                    f"mavjud={product.quantity:.4f} kvm, "
+                    f"o'zgarish={quantity_change:.4f} kvm"
+                )
+            product.quantity = new_qty
             session.commit()
 
             print(f"[OK] Stock updated: ID={product_id}, Change={quantity_change}")

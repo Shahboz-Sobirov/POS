@@ -30,8 +30,9 @@ from widgets.custom_alert import CustomAlert
 
 
 class ProductsPage(QWidget):
-    def __init__(self):
+    def __init__(self, cashier_name="Admin"):
         super().__init__()
+        self.cashier_name = cashier_name
         self.current_products = []
         self.view_mode = "glass"
         self.search_timer = QTimer()
@@ -176,10 +177,11 @@ class ProductsPage(QWidget):
             self.table.setItem(row, 2, QTableWidgetItem(f"{price_value:,.0f}"))
             self.table.setItem(row, 3, QTableWidgetItem(f"{product.cost_price:,.0f}"))
             stock_item = QTableWidgetItem(format_quantity_display(product.quantity or 0, product.unit or "kvm"))
-            if product.quantity <= 0:
+            qty = float(product.quantity or 0)
+            if qty <= 0:
                 stock_item.setBackground(Qt.red)
                 stock_item.setForeground(Qt.white)
-            elif product.quantity <= 1:
+            elif qty <= 1:
                 stock_item.setBackground(Qt.yellow)
             self.table.setItem(row, 4, stock_item)
             self.table.setItem(row, 5, QTableWidgetItem((product.unit or "kvm").upper()))
@@ -192,7 +194,11 @@ class ProductsPage(QWidget):
 
     def update_summary(self, products):
         total_products = len(products)
-        total_inventory_value = sum(float(product.quantity or 0) * float(product.selling_price or 0) for product in products)
+        # narx_per_kvm ustunligi, yo'q bo'lsa selling_price ishlatiladi
+        total_inventory_value = sum(
+            float(p.quantity or 0) * float(p.narx_per_kvm if p.narx_per_kvm is not None else p.selling_price or 0)
+            for p in products
+        )
         summary_name = "Asosiy oynalar" if self.view_mode == "glass" else "Qoldiq oynalar"
         self.total_products_label.setText(f"{summary_name}: {total_products} ta")
         self.total_inventory_value_label.setText(f"Umumiy qiymat: {total_inventory_value:,.0f} UZS")
@@ -233,7 +239,7 @@ class ProductsPage(QWidget):
         try:
             data = dialog.get_data()
             ProductService.update(product.id, **data)
-            AuditService.log_product_edited("Admin", product.id, product.name, {"action": "edited"})
+            AuditService.log_product_edited(self.cashier_name, product.id, product.name, {"action": "edited"})
             self.load_products()
             CustomAlert.show_success(self, "Muvaffaqiyat", "Ma'lumot yangilandi!")
         except Exception as e:
@@ -257,7 +263,7 @@ class ProductsPage(QWidget):
 
         try:
             ProductService.delete(product.id)
-            AuditService.log_product_deleted("Admin", product.id, product.name)
+            AuditService.log_product_deleted(self.cashier_name, product.id, product.name)
             self.load_products()
             CustomAlert.show_success(self, "Muvaffaqiyat", "Ma'lumot o'chirildi!")
         except Exception as e:

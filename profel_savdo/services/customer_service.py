@@ -62,9 +62,11 @@ class CustomerService:
     @staticmethod
     def create(full_name, phone=None):
         """Create new customer"""
+        if not full_name or not str(full_name).strip():
+            raise ValueError("Mijoz ismi bo'sh bo'lishi mumkin emas")
         session = Session()
         try:
-            customer = Customer(full_name=full_name, phone=phone)
+            customer = Customer(full_name=str(full_name).strip(), phone=phone)
             session.add(customer)
             session.commit()
 
@@ -87,10 +89,12 @@ class CustomerService:
         try:
             customer = session.query(Customer).filter_by(id=customer_id).first()
             if not customer:
-                raise ValueError("Customer not found")
+                raise ValueError("Mijoz topilmadi")
 
             if full_name is not None:
-                customer.full_name = full_name
+                if not str(full_name).strip():
+                    raise ValueError("Mijoz ismi bo'sh bo'lishi mumkin emas")
+                customer.full_name = str(full_name).strip()
             if phone is not None:
                 customer.phone = phone
 
@@ -115,7 +119,7 @@ class CustomerService:
         try:
             customer = session.query(Customer).filter_by(id=customer_id).first()
             if not customer:
-                raise ValueError("Customer not found")
+                raise ValueError("Mijoz topilmadi")
 
             session.delete(customer)
             session.commit()
@@ -130,14 +134,16 @@ class CustomerService:
 
     @staticmethod
     def update_debt(customer_id, debt_change):
-        """Update customer debt"""
+        """Update customer debt. Manfiy bo'lishdan himoya."""
         session = Session()
         try:
             customer = session.query(Customer).filter_by(id=customer_id).first()
             if not customer:
-                raise ValueError("Customer not found")
+                raise ValueError("Mijoz topilmadi")
 
-            customer.total_debt += debt_change
+            new_debt = float(customer.total_debt or 0) + float(debt_change)
+            # Qarz manfiy bo'lmasin — to'liq to'langan bo'lsa 0 qoladi
+            customer.total_debt = max(new_debt, 0)
             session.commit()
 
             print(f"[OK] Customer debt updated: ID={customer_id}, Change={debt_change}")

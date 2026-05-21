@@ -363,11 +363,12 @@ class SalesPage(QWidget):
             self.products_table.setItem(row, 1, QTableWidgetItem(product.category.name if product.category else "-"))
             price_value = product.narx_per_kvm if product.narx_per_kvm is not None else product.selling_price
             self.products_table.setItem(row, 2, QTableWidgetItem(f"{price_value:,.0f}"))
-            stock_item = QTableWidgetItem(format_quantity_display(product.quantity or 0, product.unit or "kvm"))
-            if product.quantity <= 0:
+            qty = float(product.quantity or 0)
+            stock_item = QTableWidgetItem(format_quantity_display(qty, product.unit or "kvm"))
+            if qty <= 0:
                 stock_item.setBackground(Qt.red)
                 stock_item.setForeground(Qt.white)
-            elif product.quantity <= 1:
+            elif qty <= 1:
                 stock_item.setBackground(Qt.yellow)
             self.products_table.setItem(row, 3, stock_item)
             self.products_table.setItem(row, 4, QTableWidgetItem((product.unit or "kvm").upper()))
@@ -673,7 +674,13 @@ class SalesPage(QWidget):
         self.load_customers()
 
     def calculate_cart_total(self):
-        return sum(float(item.get('jami', item['kvm'] * item['narx_per_kvm'])) for item in self.cart_items)
+        total = 0.0
+        for item in self.cart_items:
+            kvm = float(item.get('kvm') or 0)
+            narx = float(item.get('narx_per_kvm') or 0)
+            jami = float(item.get('jami') or (kvm * narx))
+            total += jami
+        return total
 
     def get_reserved_kvm(self, product_id, excluding_row=None):
         reserved = 0.0
