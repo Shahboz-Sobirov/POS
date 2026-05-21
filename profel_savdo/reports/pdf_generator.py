@@ -198,7 +198,7 @@ def _draw_header(doc, sale, is_preview=False):
 
 # Ustun kengliklari nisbati (jami = CONTENT_W)
 _COL_RATIOS = [0.05, 0.28, 0.13, 0.13, 0.10, 0.16, 0.15]
-_COL_HEADERS = ["№", "Steklo", "Uzunlik", "Kenglik", "Dona", "Maydon (m²)", "Summa"]
+_COL_HEADERS = ["№", "Oyna", "Eni", "Bo'yi", "Dona", "Maydon (m²)", "Summa"]
 
 
 def _col_widths():
