@@ -52,28 +52,28 @@ class SalesPage(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(24, 16, 24, 16)  # Kengroq margin
-        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(20, 12, 20, 12)  # Kichikroq margin
+        main_layout.setSpacing(10)
 
         top_section = QHBoxLayout()
-        top_section.setSpacing(16)  # Kengroq spacing
+        top_section.setSpacing(14)
 
         cart_panel = self.create_cart_panel()
         payment_panel = self.create_payment_panel()
         top_section.addLayout(cart_panel, 3)
-        top_section.addSpacing(16)  # Panel orasiga bo'sh joy
+        top_section.addSpacing(12)
         top_section.addLayout(payment_panel, 2)
-        main_layout.addLayout(top_section, 4)
+        main_layout.addLayout(top_section, 3)  # 4 dan 3 ga kamaytirdik
 
         products_title = QLabel("Sotiladigan Oynalar")
-        products_title.setStyleSheet("font-size: 16px; font-weight: 700; color: #102331; margin-top: 8px; margin-bottom: 4px;")
+        products_title.setStyleSheet("font-size: 15px; font-weight: 700; color: #102331; margin-top: 4px; margin-bottom: 2px;")
         main_layout.addWidget(products_title)
 
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText("Oyna nomi bo'yicha qidirish...")
-        self.search_input.setMinimumHeight(36)
+        self.search_input.setMinimumHeight(34)
         self.search_input.setClearButtonEnabled(True)
-        self.search_input.setStyleSheet("font-size: 13px; padding: 8px 12px;")
+        self.search_input.setStyleSheet("font-size: 13px; padding: 6px 10px;")
         self.search_input.textChanged.connect(self.on_search_changed)
         main_layout.addWidget(self.search_input)
 
@@ -95,16 +95,16 @@ class SalesPage(QWidget):
         self.products_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.products_table.setSelectionMode(QTableWidget.SingleSelection)
         self.products_table.verticalHeader().setVisible(False)
-        self.products_table.verticalHeader().setDefaultSectionSize(36)
+        self.products_table.verticalHeader().setDefaultSectionSize(38)  # 36 dan 38 ga
         self.products_table.setWordWrap(False)
         self.products_table.setStyleSheet("font-size: 13px;")
         self.products_table.doubleClicked.connect(self.add_to_cart_from_table)
-        main_layout.addWidget(self.products_table, 5)
+        main_layout.addWidget(self.products_table, 6)  # 5 dan 6 ga oshirdik - ko'proq joy
 
         add_btn = QPushButton("Savatga qo'shish")
         add_btn.setObjectName("btnSuccess")
-        add_btn.setMinimumHeight(36)
-        add_btn.setStyleSheet("font-size: 14px;")
+        add_btn.setMinimumHeight(38)  # Biroz kattalashtirildi
+        add_btn.setStyleSheet("font-size: 14px; font-weight: 600;")
         add_btn.clicked.connect(self.add_to_cart_from_table)
         main_layout.addWidget(add_btn)
 
@@ -115,11 +115,11 @@ class SalesPage(QWidget):
 
     def create_cart_panel(self):
         cart_container = QVBoxLayout()
-        cart_container.setSpacing(8)
-        cart_container.setContentsMargins(8, 8, 8, 8)
+        cart_container.setSpacing(6)  # 8 dan 6 ga
+        cart_container.setContentsMargins(6, 6, 6, 6)  # 8 dan 6 ga
 
         cart_label = QLabel("Savat")
-        cart_label.setStyleSheet("font-size: 15px; font-weight: 700; color: #102331; margin-bottom: 4px;")
+        cart_label.setStyleSheet("font-size: 14px; font-weight: 700; color: #102331; margin-bottom: 2px;")  # 15px dan 14px ga
         cart_container.addWidget(cart_label)
 
         self.cart_table = QTableWidget()
@@ -138,28 +138,28 @@ class SalesPage(QWidget):
         self.cart_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.cart_table.setSelectionMode(QTableWidget.SingleSelection)
         self.cart_table.verticalHeader().setVisible(False)
-        self.cart_table.verticalHeader().setDefaultSectionSize(38)
+        self.cart_table.verticalHeader().setDefaultSectionSize(36)  # 38 dan 36 ga
         self.cart_table.setWordWrap(False)
-        self.cart_table.setStyleSheet("font-size: 13px;")
+        self.cart_table.setStyleSheet("font-size: 12px;")  # 13px dan 12px ga
         self.cart_table.doubleClicked.connect(self.edit_cart_quantity)
         cart_container.addWidget(self.cart_table)
 
         cart_buttons = QHBoxLayout()
-        cart_buttons.setSpacing(8)
+        cart_buttons.setSpacing(6)  # 8 dan 6 ga
         remove_btn = QPushButton("O'chirish")
         remove_btn.setObjectName("btnDanger")
-        remove_btn.setMinimumHeight(32)
+        remove_btn.setMinimumHeight(30)  # 32 dan 30 ga
         remove_btn.clicked.connect(self.remove_from_cart)
         cart_buttons.addWidget(remove_btn)
 
         edit_btn = QPushButton("O'zgartirish")
-        edit_btn.setMinimumHeight(32)
+        edit_btn.setMinimumHeight(30)  # 32 dan 30 ga
         edit_btn.clicked.connect(self.edit_cart_quantity)
         cart_buttons.addWidget(edit_btn)
 
         clear_btn = QPushButton("Tozalash")
         clear_btn.setObjectName("btnWarning")
-        clear_btn.setMinimumHeight(32)
+        clear_btn.setMinimumHeight(30)  # 32 dan 30 ga
         clear_btn.clicked.connect(self.clear_cart)
         cart_buttons.addWidget(clear_btn)
 
@@ -168,18 +168,18 @@ class SalesPage(QWidget):
 
     def create_payment_panel(self):
         payment_container = QVBoxLayout()
-        payment_container.setSpacing(10)
-        payment_container.setContentsMargins(8, 8, 8, 8)
+        payment_container.setSpacing(8)  # 10 dan 8 ga
+        payment_container.setContentsMargins(6, 6, 6, 6)  # 8 dan 6 ga
 
         payment_label = QLabel("To'lov")
-        payment_label.setStyleSheet("font-size: 15px; font-weight: 700; color: #102331; margin-bottom: 4px;")
+        payment_label.setStyleSheet("font-size: 14px; font-weight: 700; color: #102331; margin-bottom: 2px;")  # 15px dan 14px ga
         payment_container.addWidget(payment_label)
 
         customer_group = QVBoxLayout()
-        customer_group.setSpacing(4)
+        customer_group.setSpacing(3)  # 4 dan 3 ga
         customer_group.addWidget(QLabel("Mijoz"))
         self.customer_combo = QComboBox()
-        self.customer_combo.setMinimumHeight(36)
+        self.customer_combo.setMinimumHeight(34)  # 36 dan 34 ga
         customer_group.addWidget(self.customer_combo)
         payment_container.addLayout(customer_group)
 
@@ -196,8 +196,8 @@ class SalesPage(QWidget):
         self.total_label = QLabel("Jami: 0 so'm")
         self.total_label.setAlignment(Qt.AlignCenter)
         self.total_label.setStyleSheet(
-            "font-size: 20px; font-weight: 700; color: #102331;"
-            "background-color: #e0f2fe; border: 2px solid #38bdf8; border-radius: 8px; padding: 12px; margin-top: 8px;"
+            "font-size: 18px; font-weight: 700; color: #102331;"  # 20px dan 18px ga
+            "background-color: #e0f2fe; border: 2px solid #38bdf8; border-radius: 8px; padding: 10px; margin-top: 6px;"  # padding 12px dan 10px ga
         )
         payment_container.addWidget(self.total_label)
 
@@ -207,15 +207,15 @@ class SalesPage(QWidget):
         payment_container.addWidget(self.payment_status_label)
 
         preview_btn = QPushButton("Chek (F8)")
-        preview_btn.setMinimumHeight(36)
-        preview_btn.setStyleSheet("font-size: 14px;")
+        preview_btn.setMinimumHeight(34)  # 36 dan 34 ga
+        preview_btn.setStyleSheet("font-size: 13px;")  # 14px dan 13px ga
         preview_btn.clicked.connect(self.preview_invoice)
         payment_container.addWidget(preview_btn)
 
         complete_btn = QPushButton("Yakunlash (F12)")
         complete_btn.setObjectName("btnSuccess")
-        complete_btn.setMinimumHeight(40)
-        complete_btn.setStyleSheet("font-size: 15px;")
+        complete_btn.setMinimumHeight(38)  # 40 dan 38 ga
+        complete_btn.setStyleSheet("font-size: 14px; font-weight: 600;")  # 15px dan 14px ga
         complete_btn.clicked.connect(self.complete_sale)
         payment_container.addWidget(complete_btn)
 
@@ -228,7 +228,7 @@ class SalesPage(QWidget):
         input_widget.setDecimals(0)
         input_widget.setGroupSeparatorShown(True)
         input_widget.setSuffix(" so'm")
-        input_widget.setMinimumHeight(34)
+        input_widget.setMinimumHeight(32)  # 34 dan 32 ga
         input_widget.setReadOnly(read_only)
         if slot:
             input_widget.valueChanged.connect(slot)
@@ -237,7 +237,7 @@ class SalesPage(QWidget):
     def wrap_payment_input(self, title, widget):
         wrapper = QGroupBox(title)
         layout = QVBoxLayout()
-        layout.setContentsMargins(10, 12, 10, 10)
+        layout.setContentsMargins(8, 10, 8, 8)  # 10, 12, 10, 10 dan kichikroq
         layout.addWidget(widget)
         wrapper.setLayout(layout)
         return wrapper

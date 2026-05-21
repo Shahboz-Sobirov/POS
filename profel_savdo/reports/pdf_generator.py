@@ -30,9 +30,9 @@ class PDFGenerator:
         c.drawRightString(width - right_margin, y, f"{area_sqm * price_per_kvm:,.0f}")
         y -= 12
         c.setFont("Helvetica", 8)
-        c.drawString(col_product + 12, y, f"Eni: {eni or 0:g} m")
+        c.drawString(col_product + 12, y, f"Eni: {eni or 0:g} metr")
         y -= 10
-        c.drawString(col_product + 12, y, f"Bo'yi: {boyi or 0:g} m")
+        c.drawString(col_product + 12, y, f"Bo'yi: {boyi or 0:g} metr")
         y -= 10
         c.drawString(col_product + 12, y, f"KVM: {format_square_meters(area_sqm)}")
         y -= 10
@@ -66,7 +66,7 @@ class PDFGenerator:
             c.drawString(left_margin, current_y, APP_NAME)
 
             c.setFont("Helvetica", 10)
-            c.drawString(left_margin, current_y - 18, f"Chek #{sale.id}")
+            c.drawString(left_margin, current_y - 18, f"Chek raqami: #{sale.id}")
             c.drawString(left_margin + 120, current_y - 18, f"Sana: {sale.sale_date.strftime('%d.%m.%Y %H:%M')}")
 
             next_y = current_y - 38
@@ -74,13 +74,13 @@ class PDFGenerator:
                 c.drawString(left_margin, next_y, f"Mijoz: {sale.customer.full_name}")
                 next_y -= 15
                 if sale.customer.phone:
-                    c.drawString(left_margin, next_y, f"Tel: {sale.customer.phone}")
+                    c.drawString(left_margin, next_y, f"Telefon: {sale.customer.phone}")
                     next_y -= 15
 
             c.line(left_margin, next_y, width - right_margin, next_y)
             next_y -= 18
             c.setFont("Helvetica-Bold", 10)
-            c.drawString(col_product, next_y, "Oyna")
+            c.drawString(col_product, next_y, "Mahsulot nomi")
             c.drawRightString(col_qty + 40, next_y, "KVM")
             c.drawRightString(col_price + 40, next_y, "Narx/kvm")
             c.drawRightString(width - right_margin, next_y, "Jami")
@@ -105,17 +105,18 @@ class PDFGenerator:
         y -= 22
 
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(col_price - 10, y, "JAMI:")
+        c.drawString(col_price - 10, y, "UMUMIY SUMMA:")
         c.drawRightString(width - right_margin, y, f"{sale.total_amount:,.0f} so'm")
 
         if sale.payment_breakdown:
             y -= 24
-            c.setFont("Helvetica", 10)
-            c.drawString(left_margin, y, "To'lov:")
+            c.setFont("Helvetica-Bold", 10)
+            c.drawString(left_margin, y, "To'lov ma'lumotlari:")
 
+            c.setFont("Helvetica", 10)
             if sale.payment_breakdown.get('naqd', 0) > 0:
                 y -= 15
-                c.drawString(left_margin + 18, y, f"Naqd: {sale.payment_breakdown['naqd']:,.0f} so'm")
+                c.drawString(left_margin + 18, y, f"Naqd pul: {sale.payment_breakdown['naqd']:,.0f} so'm")
 
             if sale.payment_breakdown.get('karta', 0) > 0:
                 y -= 15
@@ -130,7 +131,7 @@ class PDFGenerator:
                 c.drawString(left_margin + 18, y, f"Qarz: {sale.payment_breakdown['qarz']:,.0f} so'm")
 
         c.setFont("Helvetica", 8)
-        c.drawString(left_margin, 42, "Rahmat! Yana kuting!")
+        c.drawString(left_margin, 42, "Xaridingiz uchun rahmat! Yana kuting!")
         c.drawString(left_margin, 28, f"Kassir: {sale.cashier}")
 
         c.save()
@@ -159,9 +160,9 @@ class PDFGenerator:
             c.drawString(left_margin, current_y, APP_NAME)
 
             c.setFont("Helvetica", 10)
-            c.drawString(left_margin, current_y - 18, "Hisob-Chek")
+            c.drawString(left_margin, current_y - 18, "Ro'yxat cheki (To'lov qilinmagan)")
             c.drawString(
-                left_margin + 120,
+                left_margin + 220,
                 current_y - 18,
                 f"Sana: {preview_sale.sale_date.strftime('%d.%m.%Y %H:%M')}"
             )
@@ -171,13 +172,13 @@ class PDFGenerator:
                 c.drawString(left_margin, next_y, f"Mijoz: {preview_sale.customer.full_name}")
                 next_y -= 15
                 if preview_sale.customer.phone:
-                    c.drawString(left_margin, next_y, f"Tel: {preview_sale.customer.phone}")
+                    c.drawString(left_margin, next_y, f"Telefon: {preview_sale.customer.phone}")
                     next_y -= 15
 
             c.line(left_margin, next_y, width - right_margin, next_y)
             next_y -= 18
             c.setFont("Helvetica-Bold", 10)
-            c.drawString(col_product, next_y, "Oyna")
+            c.drawString(col_product, next_y, "Mahsulot nomi")
             c.drawRightString(col_qty + 40, next_y, "KVM")
             c.drawRightString(col_price + 40, next_y, "Narx/kvm")
             c.drawRightString(width - right_margin, next_y, "Jami")
@@ -202,11 +203,15 @@ class PDFGenerator:
         y -= 22
 
         c.setFont("Helvetica-Bold", 12)
-        c.drawString(col_price - 10, y, "JAMI:")
+        c.drawString(col_price - 10, y, "UMUMIY SUMMA:")
         c.drawRightString(width - right_margin, y, f"{preview_sale.total_amount:,.0f} so'm")
+        
+        y -= 20
+        c.setFont("Helvetica", 9)
+        c.drawString(left_margin, y, "ESLATMA: Bu ro'yxat cheki. To'lov qilinmagan va ombor rezerv qilinmagan.")
 
         c.setFont("Helvetica", 8)
-        c.drawString(left_margin, 42, "Rahmat! Yana kuting!")
+        c.drawString(left_margin, 42, "Xaridingiz uchun rahmat! Yana kuting!")
         c.drawString(left_margin, 28, f"Kassir: {preview_sale.cashier}")
 
         c.save()

@@ -338,6 +338,38 @@ class ProductDialog(QDialog):
         self.cost_price_input.setValue(float(self.product.cost_price) if self.product else 0)
         form.addRow("Kelgan narx / KVM:", self.cost_price_input)
 
+        # Qoldiq oynalar uchun o'lcham maydonlari
+        if self.product_type == "remnant":
+            self.eni_input = QDoubleSpinBox()
+            self.eni_input.setDecimals(2)
+            self.eni_input.setMaximum(9999)
+            self.eni_input.setMinimum(0)
+            self.eni_input.setSuffix(" cm")
+            self.eni_input.setMinimumHeight(38)
+            self.eni_input.setValue(0)
+            if self.product:
+                existing_eni = self.product.eni if self.product.eni is not None else self.product.width
+                if existing_eni:
+                    # Metrdan cm ga
+                    self.eni_input.setValue(float(existing_eni) * 100)
+            self.eni_input.valueChanged.connect(self.update_kvm_from_dimensions)
+            form.addRow("Eni (cm):", self.eni_input)
+
+            self.boyi_input = QDoubleSpinBox()
+            self.boyi_input.setDecimals(2)
+            self.boyi_input.setMaximum(9999)
+            self.boyi_input.setMinimum(0)
+            self.boyi_input.setSuffix(" cm")
+            self.boyi_input.setMinimumHeight(38)
+            self.boyi_input.setValue(0)
+            if self.product:
+                existing_boyi = self.product.boyi if self.product.boyi is not None else self.product.height
+                if existing_boyi:
+                    # Metrdan cm ga
+                    self.boyi_input.setValue(float(existing_boyi) * 100)
+            self.boyi_input.valueChanged.connect(self.update_kvm_from_dimensions)
+            form.addRow("Bo'yi (cm):", self.boyi_input)
+
         stock_layout = QHBoxLayout()
         stock_layout.setSpacing(8)
         self.quantity_input = QDoubleSpinBox()
@@ -346,6 +378,13 @@ class ProductDialog(QDialog):
         self.quantity_input.setGroupSeparatorShown(True)
         self.quantity_input.setMinimumHeight(38)
         self.quantity_input.setValue(float(self.product.quantity) if self.product else 0)
+        
+        # Qoldiq oynalar uchun KVM ni read-only qilish
+        if self.product_type == "remnant":
+            self.quantity_input.setReadOnly(True)
+            self.quantity_input.setButtonSymbols(QDoubleSpinBox.NoButtons)
+            self.quantity_input.setStyleSheet("QDoubleSpinBox { background-color: #f0f0f0; }")
+        
         stock_layout.addWidget(self.quantity_input, 3)
 
         self.unit_combo = QComboBox()
@@ -358,9 +397,15 @@ class ProductDialog(QDialog):
             self.unit_combo.addItem(existing_unit, existing_unit)
             unit_index = self.unit_combo.findData(existing_unit)
         self.unit_combo.setCurrentIndex(unit_index)
+        
+        # Qoldiq oynalar uchun unit ni faqat KVM qilish
+        if self.product_type == "remnant":
+            self.unit_combo.setCurrentIndex(0)  # KVM
+            self.unit_combo.setEnabled(False)
+        
         stock_layout.addWidget(self.unit_combo, 1)
 
-        form.addRow("Ombor:", stock_layout)
+        form.addRow("Ombor (KVM):", stock_layout)
 
         self.note_input = QTextEdit()
         self.note_input.setMaximumHeight(74)
@@ -387,7 +432,31 @@ class ProductDialog(QDialog):
         body.addLayout(buttons)
         root.addLayout(body)
         self.setLayout(root)
-        self.setFixedSize(540, 430)
+        
+        # Qoldiq oynalar uchun balandlikni oshirish
+        if self.product_type == "remnant":
+            self.setFixedSize(540, 520)
+            # Agar mavjud product bo'lsa, KVM ni yangilash
+            if self.product:
+                self.update_kvm_from_dimensions()
+        else:
+            self.setFixedSize(540, 430)
+
+    def update_kvm_from_dimensions(self):
+        """Qoldiq oynalar uchun eni va bo'yidan KVM ni avtomatik hisoblash"""
+        if self.product_type != "remnant":
+            return
+        
+        eni_cm = self.eni_input.value()
+        boyi_cm = self.boyi_input.value()
+        
+        if eni_cm <= 0 or boyi_cm <= 0:
+            self.quantity_input.setValue(0)
+            return
+        
+        # cm^2 dan m^2 ga: (eni_cm * boyi_cm) / 10000
+        kvm = (eni_cm * boyi_cm) / 10000.0
+        self.quantity_input.setValue(kvm)
 
     def create_money_input(self):
         spin = QDoubleSpinBox()
@@ -415,13 +484,33 @@ class ProductDialog(QDialog):
             CustomAlert.show_warning(self, "Ogohlantirish", "Ombor manfiy bo'lishi mumkin emas!")
             self.quantity_input.setFocus()
             return
+        
+        # Qoldiq oynalar uchun eni va bo'yi tekshirish
+        if self.product_type == "remnant":
+            if self.eni_input.value() <= 0:
+                CustomAlert.show_warning(self, "Ogohlantirish", "Eni 0 dan katta bo'lishi kerak!")
+                self.eni_input.setFocus()
+                return
+            if self.boyi_input.value() <= 0:
+                CustomAlert.show_warning(self, "Ogohlantirish", "Bo'yi 0 dan katta bo'lishi kerak!")
+                self.boyi_input.setFocus()
+                return
+        
         self.accept()
 
     def get_data(self):
         preserved_width = None
         preserved_height = None
         preserved_area = None
-        if self.product:
+        
+        # Qoldiq oynalar uchun cm dan metrga o'tkazish
+        if self.product_type == "remnant":
+            eni_cm = self.eni_input.value()
+            boyi_cm = self.boyi_input.value()
+            preserved_width = eni_cm / 100.0  # cm dan metrga
+            preserved_height = boyi_cm / 100.0  # cm dan metrga
+            preserved_area = self.quantity_input.value()  # Avtomatik hisoblangan KVM
+        elif self.product:
             preserved_width = self.product.eni if self.product.eni is not None else self.product.width
             preserved_height = self.product.boyi if self.product.boyi is not None else self.product.height
             preserved_area = self.product.kvm if self.product.kvm is not None else self.product.area_sqm
