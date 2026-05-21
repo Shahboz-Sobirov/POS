@@ -146,8 +146,8 @@ class GlassOrderDialog(QDialog):
         self.eni_input = self.create_dimension_input()
         self.boyi_input = self.create_dimension_input()
 
-        default_eni = 1.0
-        default_boyi = 1.0
+        default_eni = 0.0
+        default_boyi = 0.0
         if self.product.is_remnant:
             default_eni = float(self.product.eni or self.product.width or 0.01)
             default_boyi = float(self.product.boyi or self.product.height or 0.01)
@@ -158,8 +158,8 @@ class GlassOrderDialog(QDialog):
             self.eni_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
             self.boyi_input.setButtonSymbols(QAbstractSpinBox.NoButtons)
         elif self.existing_item:
-            default_eni = float(self.existing_item.get('eni', self.existing_item.get('width', 1.0)))
-            default_boyi = float(self.existing_item.get('boyi', self.existing_item.get('height', 1.0)))
+            default_eni = float(self.existing_item.get('eni', self.existing_item.get('width', 0.0)))
+            default_boyi = float(self.existing_item.get('boyi', self.existing_item.get('height', 0.0)))
             self.eni_input.setValue(default_eni)
             self.boyi_input.setValue(default_boyi)
         else:
@@ -201,12 +201,12 @@ class GlassOrderDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.setSpacing(10)
 
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton("Bekor qilish")
         cancel_btn.setMinimumHeight(38)
         cancel_btn.clicked.connect(self.reject)
         buttons.addWidget(cancel_btn)
 
-        save_btn = QPushButton("Save")
+        save_btn = QPushButton("Savatga qo'shish")
         save_btn.setObjectName("btnSuccess")
         save_btn.setMinimumHeight(38)
         save_btn.clicked.connect(self.accept_if_valid)
@@ -223,28 +223,44 @@ class GlassOrderDialog(QDialog):
         spin = QDoubleSpinBox()
         spin.setDecimals(2)
         spin.setMaximum(9999)
-        spin.setMinimum(0.01)
+        spin.setMinimum(0.0)          # 0.01 emas, 0.0 — foydalanuvchi o'zi kiriting
         spin.setSingleStep(0.05)
         spin.setSuffix(" m")
         spin.setMinimumHeight(38)
+        spin.setSpecialValueText("—") # 0.0 bo'lganda "—" ko'rsatadi
         return spin
 
     def update_calculations(self):
-        metrics = calculate_window_metrics(
-            self.eni_input.value(),
-            self.boyi_input.value(),
-            max(self.price_input.value(), 0.01),
-        )
+        eni  = self.eni_input.value()
+        boyi = self.boyi_input.value()
+        price = max(self.price_input.value(), 0.01)
+
+        if eni <= 0 or boyi <= 0:
+            # Hali kiritilmagan — summary kartasini bo'sh ko'rsat
+            self.summary_card.stock_label.setText(
+                f"Mavjud ombor: {format_square_meters(self.available_stock)}"
+            )
+            self.summary_card.formula_label.setText("Eni va Bo'yini kiriting")
+            self.summary_card.kvm_label.setText("0 kvm")
+            self.summary_card.total_label.setText("0 so'm")
+            self.availability_label.setText(
+                f"Mavjud ombor: {format_square_meters(self.available_stock)}"
+            )
+            self.availability_label.setStyleSheet(
+                "background-color: #e0f2fe; border: 1px solid #38bdf8; "
+                "border-radius: 8px; padding: 10px 12px; color: #102331; font-weight: 600;"
+            )
+            return
+
+        metrics = calculate_window_metrics(eni, boyi, price)
         self.summary_card.update_values(
-            metrics['eni'],
-            metrics['boyi'],
-            metrics['narx_per_kvm'],
-            self.available_stock,
+            metrics['eni'], metrics['boyi'],
+            metrics['narx_per_kvm'], self.available_stock,
         )
 
         if metrics['kvm'] > self.available_stock:
             self.availability_label.setText(
-                "Kiritilgan o'lcham ombordagi kvm dan katta. O'lchamni kamaytiring."
+                "⚠ Kiritilgan o'lcham ombordagi kvm dan katta!"
             )
             self.availability_label.setStyleSheet(
                 "background-color: #fef2f2; border: 1px solid #f87171; "
@@ -252,7 +268,7 @@ class GlassOrderDialog(QDialog):
             )
         else:
             self.availability_label.setText(
-                f"Sotuv kvm: {format_square_meters(metrics['kvm'])} | "
+                f"✓ Sotuv: {format_square_meters(metrics['kvm'])}  |  "
                 f"Qoladi: {format_square_meters(max(self.available_stock - metrics['kvm'], 0))}"
             )
             self.availability_label.setStyleSheet(
@@ -261,6 +277,19 @@ class GlassOrderDialog(QDialog):
             )
 
     def accept_if_valid(self):
+        if self.eni_input.value() <= 0:
+            CustomAlert.show_warning(self, "Ogohlantirish", "Eni kiritilmagan!")
+            self.eni_input.setFocus()
+            return
+        if self.boyi_input.value() <= 0:
+            CustomAlert.show_warning(self, "Ogohlantirish", "Bo'yi kiritilmagan!")
+            self.boyi_input.setFocus()
+            return
+        if self.price_input.value() <= 0:
+            CustomAlert.show_warning(self, "Ogohlantirish", "Narx/KVM kiritilmagan!")
+            self.price_input.setFocus()
+            return
+
         try:
             metrics = calculate_window_metrics(
                 self.eni_input.value(),
@@ -272,7 +301,12 @@ class GlassOrderDialog(QDialog):
             return
 
         if metrics['kvm'] > self.available_stock:
-            CustomAlert.show_warning(self, "Ogohlantirish", "Omborda yetarli KVM yo'q!")
+            CustomAlert.show_warning(
+                self, "Ogohlantirish",
+                f"Omborda yetarli KVM yo'q!\n"
+                f"So'ralgan: {metrics['kvm']:.4f} kvm\n"
+                f"Mavjud: {self.available_stock:.4f} kvm"
+            )
             return
 
         self.accept()

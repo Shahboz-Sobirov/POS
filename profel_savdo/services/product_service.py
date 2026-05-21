@@ -207,6 +207,7 @@ class ProductService:
                 unit=kwargs.get('unit', product.unit),
                 width=kwargs.get('eni', kwargs.get('width', product.eni or product.width)),
                 height=kwargs.get('boyi', kwargs.get('height', product.boyi or product.height)),
+                # glass uchun area_sqm = bitta oyna maydoni (eni*boyi), quantity boshqa
                 area_sqm=kwargs.get('kvm', kwargs.get('area_sqm', product.kvm or product.area_sqm)),
                 product_type=kwargs.get('product_type', product.product_type or 'glass'),
                 note=kwargs.get('note', product.note),
@@ -335,11 +336,15 @@ class ProductService:
             if normalized_height <= 0:
                 raise ValueError("Qoldiq oynaning bo'yi 0 dan katta bo'lishi kerak")
             normalized_area = calculate_area_sqm(normalized_width, normalized_height)
+            # Qoldiq oyna uchun quantity = eni*boyi (1 ta parcha)
             normalized_quantity = normalized_area
 
-        # glass uchun ham eni/boyi/kvm saqlanadi (faqat kiritilgan bo'lsa)
-        # Eski xatti-harakat: if normalized_type != 'remnant': None ga o'rnatilgan edi
-        # Endi glass uchun ham saqlaymiz
+        # glass uchun quantity dialog tomonidan hisoblangan to'g'ri qiymat (eni*boyi*dona)
+        # area_sqm esa bitta oynaning maydoni — quantity ni ustiga yozmaymiz
+        if normalized_type == 'glass':
+            # area_sqm = bitta oynaning maydoni (eni*boyi), quantity = umumiy kvm (dona*area)
+            # Ikkalasini alohida saqlaymiz — quantity o'zgarmaydi
+            pass
 
         return {
             'name': str(name).strip(),
